@@ -68,18 +68,56 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
     if (!containerRef.current) return;
 
     try {
-      const encodedPlantUML = encodeURI(code);
-      const svgUrl = `https://www.plantuml.com/plantuml/svg/${encodedPlantUML}`;
+      const encoded = encodeURIComponent(code);
+      
+      // Try local server first, then public
+      const servers = [
+        `http://localhost:8080/plantuml/svg/${encoded}`,
+        `https://www.plantuml.com/plantuml/svg/${encoded}`,
+      ];
 
-      const response = await fetch(svgUrl);
-      const svg = await response.text();
-      // Check containerRef again after async operation
+      let svg: string | null = null;
+      let lastError: Error | null = null;
+
+      for (const url of servers) {
+        try {
+          console.log('[PlantUML] Trying:', url.substring(0, 60));
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+          const response = await fetch(url, {
+            mode: 'cors',
+            headers: { 'Accept': 'image/svg+xml' },
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            svg = await response.text();
+            if (svg && svg.includes('<svg')) {
+              console.log('[PlantUML] Success from:', url.substring(0, 40));
+              break;
+            }
+          }
+        } catch (err) {
+          lastError = err as Error;
+          continue;
+        }
+      }
+
+      if (!svg) {
+        throw lastError || new Error('All PlantUML servers failed');
+      }
+
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
       }
     } catch (error) {
+      console.error('[PlantUML] Render failed:', error);
       throw new Error(
-        `PlantUML render error: ${error instanceof Error ? error.message : String(error)}`
+        `PlantUML render error: Cannot reach PlantUML server (CORS/Network issue). Ensure local server is running: docker run -d -p 8080:8080 plantuml/plantuml-server:jetty`
       );
     }
   };

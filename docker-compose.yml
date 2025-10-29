@@ -14,8 +14,6 @@ services:
       - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3001
-    depends_on:
-      - frontend
     networks:
       - diagram-network
     restart: unless-stopped
@@ -29,17 +27,19 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=${FRONTEND_API_URL:-http://localhost:3001}
+      - VITE_API_URL=${FRONTEND_API_URL:-http://backend:3001}
     networks:
       - diagram-network
     restart: unless-stopped
 
-  # Optional: PlantUML Server (start if ENABLE_PLANTUML=true)
+  # PlantUML Server
   plantuml:
     image: plantuml/plantuml-server:jetty
     container_name: ai-diagram-builder-plantuml
     ports:
       - "8080:8080"
+    environment:
+      - PLANTUML_SECURITY_ALLOW_FETCH=true
     networks:
       - diagram-network
     restart: unless-stopped

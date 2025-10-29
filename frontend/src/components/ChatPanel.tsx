@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import mermaid from 'mermaid';
 
 interface ChatPanelProps {
   prompt: string;
@@ -55,7 +54,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         >
           <option value="mermaid">Mermaid (flowchart, sequence, class)</option>
-          <option value="plantuml">PlantUML (UML, component)</option>
           <option value="dbml">DBML (Entity-Relationship)</option>
           <option value="graphviz">Graphviz (DOT)</option>
         </select>

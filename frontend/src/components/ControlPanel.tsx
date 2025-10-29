@@ -2,9 +2,11 @@ import React, { useRef } from 'react';
 import { exportAsPNG, exportAsSVG, exportAsPDF, downloadJSON, loadJSONFile } from '../utils/exporters';
 import { saveProject, generateId, ProjectData } from '../utils/storage';
 
+type DiagramType = 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
+
 interface ControlPanelProps {
   code: string;
-  diagramType: string;
+  diagramType: DiagramType;
   prompt: string;
   previewRef: React.RefObject<HTMLDivElement>;
   onLoadProject: (project: ProjectData) => void;
@@ -66,7 +68,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     const project: ProjectData = {
       id: generateId(),
       name: `${diagramType} - ${new Date().toLocaleString()}`,
-      diagramType: diagramType as typeof diagramType,
+      diagramType: diagramType as DiagramType,
       code,
       prompt,
       versions: [{ code, timestamp: new Date().toISOString() }],
