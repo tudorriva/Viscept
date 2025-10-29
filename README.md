@@ -1,64 +1,74 @@
-# AI Diagram Builder
+<div align="center">
 
-A personal web app that takes natural-language prompts and returns rendered diagrams in multiple languages (Mermaid, PlantUML, DBML, Graphviz). Powered by local LLM inference via Ollama.
+<h1>Viscept — AI Diagram Builder</h1>
+<p>Generate professional diagrams from natural language. Rendering happens in the browser; AI generation runs locally via Ollama.</p>
+
+<!-- Badges -->
+<img alt="Build" src="https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge" />
+<img alt="Tests" src="https://img.shields.io/badge/tests-passing-success?style=for-the-badge" />
+<img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" />
+<img alt="Node" src="https://img.shields.io/badge/node-18%2B-339933?style=for-the-badge" />
+<img alt="React" src="https://img.shields.io/badge/react-18-61dafb?style=for-the-badge" />
+<img alt="TypeScript" src="https://img.shields.io/badge/typescript-5-3178c6?style=for-the-badge" />
+<img alt="Docker" src="https://img.shields.io/badge/docker-supported-2496ed?style=for-the-badge" />
+<img alt="LLM" src="https://img.shields.io/badge/llm-Ollama-informational?style=for-the-badge" />
+
+<p>
+<a href="#quick-start">Quick Start</a> •
+<a href="#features">Features</a> •
+<a href="#architecture">Architecture</a> •
+<a href="#api-endpoints">API</a> •
+<a href="#configuration">Configuration</a> •
+<a href="#project-structure">Project Structure</a> •
+<a href="#development">Development</a> •
+<a href="#troubleshooting">Troubleshooting</a>
+</p>
+</div>
+
+---
+
+## Overview
+
+Viscept is a local-first web application that converts natural-language prompts into diagram code and renders the result instantly. It supports Mermaid, DBML, Graphviz (DOT), and PlantUML (via conversion/optional server). The backend integrates with Ollama so models run on your machine.
+
+- Frontend: React + Vite + Tailwind + TypeScript
+- Backend: Node.js + Express + TypeScript
+- AI: Ollama (local LLM inference)
+
+---
 
 ## Features
 
-✨ **Core Features:**
-- 💬 Chat-style prompt interface for natural language diagram requests
-- 🎨 Support for 4 diagram types: **Mermaid**, **PlantUML**, **DBML (ERD)**, **Graphviz (DOT)**
-- ✏️ Monaco editor with live syntax highlighting
-- 👁️ Real-time diagram preview with auto-re-render on code changes
-- 📊 History/Versions panel (last 20 versions stored in localStorage)
-- 💾 Save/Load projects as JSON
-- 📥 Export diagrams as **PNG**, **SVG**, or **PDF**
-- ⌨️ Keyboard shortcuts: `Ctrl+Enter` (send), `Ctrl+S` (save), `Ctrl+Shift+E` (export SVG)
-- 🎯 Regenerate with AI, format code, strict mode toggle
-- 📱 Responsive 3-column layout (Chat | Code | Preview)
+- Natural-language prompts with fast generation
+- Four diagram languages: Mermaid, DBML, Graphviz (DOT), PlantUML
+- Live preview panel with immediate re-render
+- Code editor with formatting
+- Version history (up to 20) stored locally
+- Export to PNG, SVG, and PDF
+- Save/Load projects as JSON
+- Keyboard shortcuts for common actions
+- Docker support
 
-## Architecture
-
-```
-ai-diagram-builder/
-├── frontend/          # React + Vite + Tailwind + Monaco
-├── backend/           # Node.js + Express
-├── templates/         # Sample prompts and diagram files
-├── scripts/           # Setup helpers
-├── docker-compose.yml # Multi-container orchestration
-├── Dockerfile         # Backend
-├── Dockerfile.frontend # Frontend
-├── Makefile          # Dev/build tasks
-├── .env.example      # Environment config
-└── README.md
-```
+---
 
 ## Quick Start
 
 ### Prerequisites
 
-- **Node.js** ≥ 18
-- **Ollama** (local LLM inference) — [Install here](https://ollama.ai)
-- **Docker & Docker Compose** (optional, for containerized setup)
+- Node.js 18 or newer
+- Ollama installed and running locally
+- Docker (optional)
 
-### Option 1: Run Locally (without Docker)
-
-#### 1. Install Ollama & Pull a Model
+### 1) Start Ollama
 
 ```bash
-# Install Ollama from https://ollama.ai
-# Then download a code-generation model:
 ollama pull mistral
-# or
-ollama pull neural-chat
-```
-
-Start Ollama in the background:
-```bash
 ollama serve
 ```
-(Ollama will listen on `http://localhost:11434`)
 
-#### 2. Backend Setup
+Ollama listens on http://localhost:11434.
+
+### 2) Start the backend
 
 ```bash
 cd backend
@@ -66,9 +76,9 @@ npm install
 npm run dev
 ```
 
-The backend will start on `http://localhost:3001`
+Backend runs at http://localhost:3001.
 
-#### 3. Frontend Setup (in a new terminal)
+### 3) Start the frontend
 
 ```bash
 cd frontend
@@ -76,252 +86,189 @@ npm install
 npm run dev
 ```
 
-The frontend will start on `http://localhost:3000`
+Open http://localhost:3000 in your browser.
 
-#### 4. Open Browser
-
-Navigate to **http://localhost:3000** and start generating diagrams!
-
----
-
-### Option 2: Run with Docker Compose
-
-#### 1. Ensure Ollama is Running
+### Docker (optional)
 
 ```bash
+# Ensure Ollama is running on the host
 ollama serve
-```
 
-#### 2. Configure .env
-
-Copy `.env.example` to `.env` (or leave defaults):
-```bash
-cp .env.example .env
-```
-
-**Important:** On Docker, use `http://host.docker.internal:11434/api/generate` (macOS/Windows) or `http://172.17.0.1:11434/api/generate` (Linux) to reach host Ollama.
-
-#### 3. Start Containers
-
-```bash
-make up
-# or
+# From project root
 docker-compose up --build
 ```
 
-- Frontend: **http://localhost:3000**
-- Backend: **http://localhost:3001**
-- PlantUML Server (optional): **http://localhost:8080** (if `ENABLE_PLANTUML=true`)
+- Frontend: http://localhost:3000  
+- Backend: http://localhost:3001
 
-#### 4. Stop Containers
-
-```bash
-make down
-# or
-docker-compose down
-```
+If Docker needs to reach Ollama on the host:
+- macOS/Windows: OLLAMA_URL=http://host.docker.internal:11434/api/generate
+- Linux: OLLAMA_URL=http://172.17.0.1:11434/api/generate
 
 ---
 
-## Usage Guide
+## Architecture
 
-### 1. Generate a Diagram
+```
+ai-diagram-builder/
+├── frontend/   React + Vite (TypeScript)
+└── backend/    Express API (TypeScript)  →  Ollama (local LLM)
+```
 
-1. **Select Diagram Type**: Choose from Mermaid, PlantUML, DBML, or Graphviz in the top selector.
-2. **Type Prompt**: Enter a natural-language request in the chat box, e.g.:
-   ```
-   Create a Mermaid flowchart for a user login workflow with error handling
-   ```
-3. **Submit**: Press `Ctrl+Enter` or click "Generate".
-4. **View Result**: The AI-generated code appears in the Monaco editor; the diagram renders in the preview pane.
+Key components:
+- Rendering: [`frontend/src/components/DiagramPreview.tsx`](frontend/src/components/DiagramPreview.tsx)
+- API client: [`frontend/src/utils/api.ts`](frontend/src/utils/api.ts)
+- Routes: [`backend/src/routes/diagramRoutes.ts`](backend/src/routes/diagramRoutes.ts)
+- Controllers: [`backend/src/controllers/diagramController.ts`](backend/src/controllers/diagramController.ts)
+- LLM service: [`backend/src/services/ollamaService.ts`](backend/src/services/ollamaService.ts)
+- Formatting service: [`backend/src/services/formatterService.ts`](backend/src/services/formatterService.ts)
+- Demo data: [`backend/src/services/demoService.ts`](backend/src/services/demoService.ts)
 
-### 2. Edit Code Manually
+---
 
-- Click in the **Code Editor** panel and modify the diagram code.
-- The preview updates **in real-time**.
-- Use the **Format Code** button to auto-format (basic formatting).
+## Usage
 
-### 3. Regenerate with AI
+1. Select a diagram type in the UI.
+2. Describe your diagram in plain language.
+3. Generate; the code and preview update instantly.
+4. Edit code manually if needed.
+5. Export (PNG/SVG/PDF) or Save the project as JSON.
 
-- Click **"Regenerate with AI"** to ask the AI to create a new version based on the last prompt.
-- New version appears in History panel.
-
-### 4. Save & Load Projects
-
-- **Save**: Click **"Save Project"** to download a `.json` file containing:
-  - All prompt history
-  - Current code
-  - Diagram type and metadata
-- **Load**: Click **"Load Project"** and select a previously saved `.json` file.
-
-### 5. Export Diagrams
-
-- **PNG**: Rasterized version (transparent background).
-- **SVG**: Scalable vector graphics (best for web/print).
-- **PDF**: Portable document format.
-
-### 6. Version History
-
-- Every generated diagram is stored in the **History Panel** (right sidebar).
-- Browse back through the last **20 versions**.
-- Click to restore any previous version.
-- Versions are persisted in `localStorage`.
-
-### 7. Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+Enter` | Send prompt & generate diagram |
-| `Ctrl+S` | Save project to JSON |
-| `Ctrl+Shift+E` | Export diagram as SVG |
+Keyboard shortcuts:
+- Ctrl+Enter — Generate
+- Ctrl+S — Save project
+- Ctrl+Shift+E — Export SVG
 
 ---
 
 ## API Endpoints
 
-### Backend API Reference
+Base URL: http://localhost:3001
 
-#### `POST /api/generate`
+### POST /api/generate
+Generate diagram code from a prompt.
 
-Generate diagram code from a natural-language prompt.
-
-**Request:**
+Request:
 ```json
 {
-  "prompt": "Create a Mermaid diagram for a database schema",
-  "diagramType": "mermaid|plantuml|dbml|graphviz"
+  "prompt": "Create a flowchart for user login",
+  "diagramType": "mermaid"
 }
 ```
 
-**Response:**
+Response:
 ```json
 {
-  "code": "graph TD\n  A --> B",
+  "code": "graph TD\n  A[Start] --> B[Enter Credentials]\n  ...",
   "language": "mermaid",
-  "timestamp": "2025-10-20T12:34:56Z"
+  "timestamp": "2025-01-20T10:00:00Z"
 }
 ```
 
-**Fallback:** If Ollama is unavailable, returns a skeleton template for the requested diagram type.
+### POST /api/format
+Format diagram code.
 
----
-
-#### `POST /api/format`
-
-Format/pretty-print diagram code (optional).
-
-**Request:**
+Request:
 ```json
 {
-  "code": "graph TD\n A-->B",
+  "code": "graph TD\nA-->B",
   "language": "mermaid"
 }
 ```
 
-**Response:**
+Response:
 ```json
 {
   "formatted": "graph TD\n  A --> B\n"
 }
 ```
 
----
-
-#### `GET /api/demo`
-
-Get sample diagrams for each type (demo/testing).
-
-**Response:**
-```json
-{
-  "dbml": "...",
-  "mermaid": "...",
-  "plantuml": "...",
-  "graphviz": "..."
-}
-```
+### GET /api/demo
+Return sample diagrams for each supported type.
 
 ---
 
 ## Configuration
 
-### Environment Variables
+Backend (`backend/.env` or docker-compose):
 
-**Backend (.env or docker-compose):**
 ```env
-# Local LLM endpoint
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=mistral
-
-# Server
+OLLAMA_TIMEOUT=30000
 PORT=3001
 NODE_ENV=development
-
-# Optional PlantUML server
 PLANTUML_SERVER=https://www.plantuml.com/plantuml/svg/
+STRICT_MODE=false
+MAX_OUTPUT_LENGTH=10000
 ```
 
-**Frontend (vite.config.ts):**
+Frontend (Vite):
+
 ```env
 VITE_API_URL=http://localhost:3001
 ```
 
 ---
 
-## Diagram Type Recommendations
+## Project Structure
 
-### Mermaid
-Best for: Flowcharts, sequence diagrams, class diagrams, state machines.
 ```
-Example: "Create a Mermaid flowchart showing the steps to book a flight ticket."
-```
+frontend/
+  src/
+    components/
+      ChatPanel.tsx
+      CodeEditor.tsx
+      DiagramPreview.tsx
+      HistoryPanel.tsx
+      ControlPanel.tsx
+    utils/
+      api.ts
+      exporters.ts
+      converters.ts
+    main.tsx
+    index.css
+  vite.config.ts
+  tailwind.config.js
 
-### PlantUML
-Best for: Component diagrams, deployment diagrams, UML class diagrams.
-```
-Example: "Draw a PlantUML sequence diagram of a banking transaction."
-```
+backend/
+  src/
+    routes/diagramRoutes.ts
+    controllers/diagramController.ts
+    services/
+      ollamaService.ts
+      formatterService.ts
+      demoService.ts
+    middleware/errorHandler.ts
+    app.ts
+    server.ts
 
-### DBML (Entity-Relationship Diagram)
-Best for: Database schemas, relationships, constraints.
-```
-Example: "Design a DBML ERD for an e-commerce platform with users, products, and orders."
-```
-
-### Graphviz (DOT)
-Best for: Directed graphs, dependency graphs, technical diagrams.
-```
-Example: "Create a Graphviz diagram of a microservices architecture."
-```
-
----
-
-## Local LLM Setup
-
-### Recommended Models
-
-**For Code/Diagram Generation:**
-- `mistral` — Fast, 7B, excellent code quality
-- `neural-chat` — Optimized for conversations
-- `codellama` — Specialized for code (requires ~14GB RAM)
-
-### Setup Script
-
-```bash
-bash scripts/setup-local-ollama.sh
+templates/
+  prompts/...
+  samples/...
 ```
 
-This script provides instructions to:
-1. Download and install Ollama
-2. Pull a recommended model (`mistral` or `neural-chat`)
-3. Configure the `OLLAMA_MODEL` environment variable
-4. Verify the endpoint is reachable
+Additional documentation:
+- [QUICK_START.md](QUICK_START.md)
+- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+- [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
+- [FILE_INDEX.md](FILE_INDEX.md)
 
 ---
 
 ## Development
 
-### Build Frontend & Backend
+Install dependencies and run dev servers:
+
+```bash
+# Backend
+cd backend && npm install && npm run dev
+
+# Frontend
+cd frontend && npm install && npm run dev
+```
+
+Build:
 
 ```bash
 make build
@@ -329,200 +276,52 @@ make build
 npm run build --prefix frontend && npm run build --prefix backend
 ```
 
-### Run Dev Servers
+Tests:
 
 ```bash
-make dev
-# Terminal 1:
-cd backend && npm run dev
-# Terminal 2:
-cd frontend && npm run dev
+cd backend && npm test
 ```
 
-### Run Tests
-
-```bash
-cd backend
-npm test
-```
-
-### Linting & Formatting
+Lint and format:
 
 ```bash
 # Frontend
-cd frontend
-npm run lint
-npm run format
-
+cd frontend && npm run lint && npm run format
 # Backend
-cd backend
-npm run lint
-npm run format
+cd backend && npm run lint && npm run format
 ```
-
----
-
-## Project Structure Details
-
-```
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── ChatPanel.tsx         # Prompt input & send
-│   │   ├── CodeEditor.tsx        # Monaco editor
-│   │   ├── DiagramPreview.tsx    # Renderer (Mermaid/Graphviz/PlantUML/DBML)
-│   │   ├── HistoryPanel.tsx      # Version history sidebar
-│   │   └── ControlPanel.tsx      # Export, save, load, format buttons
-│   ├── hooks/
-│   │   ├── useDiagramRenderer.ts # Render logic
-│   │   └── useHistory.ts         # localStorage persistence
-│   ├── utils/
-│   │   ├── api.ts                # Backend API client
-│   │   ├── exporters.ts          # PNG/SVG/PDF export
-│   │   └── dbml-to-mermaid.ts    # DBML converter (fallback)
-│   ├── App.tsx
-│   ├── index.css                 # Tailwind
-│   └── main.tsx
-├── public/
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-└── tailwind.config.js
-
-backend/
-├── src/
-│   ├── controllers/
-│   │   └── diagramController.ts  # API logic
-│   ├── services/
-│   │   ├── ollamaService.ts      # Ollama integration
-│   │   ├── formatterService.ts   # Code formatting
-│   │   └── demoService.ts        # Sample data
-│   ├── utils/
-│   │   ├── logger.ts
-│   │   ├── sanitizer.ts          # Output cleanup
-│   │   └── templates.ts          # Fallback templates
-│   ├── middleware/
-│   │   └── errorHandler.ts
-│   ├── server.ts                 # Main entry
-│   └── app.ts                    # Express setup
-├── package.json
-├── tsconfig.json
-└── jest.config.js
-
-templates/
-├── prompts/
-│   ├── mermaid-examples.txt
-│   ├── plantuml-examples.txt
-│   ├── dbml-examples.txt
-│   └── graphviz-examples.txt
-└── samples/
-    ├── company-erp.dbml
-    ├── user-login-flow.mermaid
-    ├── class-hierarchy.plantuml
-    └── microservices-arch.dot
-
-scripts/
-└── setup-local-ollama.sh         # Ollama setup guide
-```
-
----
-
-## Deployment Notes
-
-### Local Development (Recommended for Initial Use)
-
-- Ollama runs on your machine; no internet required (after model is cached).
-- All processing is local—no data sent to external services.
-- Perfect for privacy-sensitive diagram generation.
-
-### Cloud Deployment
-
-If scaling beyond local dev:
-
-1. **Managed Inference Services:**
-   - AWS SageMaker, Azure ML, GCP Vertex AI
-   - Replicate, Together AI (serverless LLM APIs)
-   - Scale dynamically based on load.
-
-2. **Self-Hosted LLM:**
-   - Deploy Ollama on a VM with GPU (e.g., AWS EC2 with NVIDIA GPU).
-   - Set `OLLAMA_URL` to the remote endpoint.
-   - Add authentication (API keys) before exposing publicly.
-
-3. **Containerized Frontend/Backend:**
-   - Already in `Dockerfile` and `docker-compose.yml`.
-   - Deploy to Kubernetes, ECS, or App Platform.
-
-4. **Security Considerations:**
-   - **Never expose Ollama endpoint publicly without authentication.**
-   - Add API key authentication in the backend before production.
-   - Rate-limit requests to prevent abuse.
-   - Sanitize and validate user inputs.
 
 ---
 
 ## Troubleshooting
 
-### Issue: "Cannot reach Ollama"
+Cannot reach Ollama:
+- Ensure `ollama serve` is running.
+- Verify `OLLAMA_URL` points to the correct endpoint.
+- Test with: `curl http://localhost:11434/api/tags`.
 
-**Solution:**
-1. Ensure Ollama is running: `ollama serve`
-2. Check `OLLAMA_URL` in `.env` — should be `http://localhost:11434/api/generate`
-3. In Docker, use `http://host.docker.internal:11434/api/generate` (macOS/Windows)
-4. Test: `curl -X POST http://localhost:11434/api/generate -d '{"model":"mistral","prompt":"test"}'`
+Diagram not rendering:
+- Check browser console for errors.
+- Validate syntax for the selected diagram type.
+- Use the Format button to normalize code.
 
-### Issue: Diagram Not Rendering
+Docker cannot reach Ollama:
+- macOS/Windows: `http://host.docker.internal:11434/api/generate`
+- Linux: `http://172.17.0.1:11434/api/generate`
 
-**Solution:**
-1. Check browser console for JavaScript errors.
-2. Verify the generated code syntax for the diagram type.
-3. Try the **Format Code** button to clean up whitespace.
-4. Check the **History Panel** for previous working versions.
-
-### Issue: Model Timeout
-
-**Solution:**
-1. Increase `OLLAMA_TIMEOUT` in backend `.env` (default 30s).
-2. Use a smaller/faster model: `ollama pull neural-chat` (smaller than mistral).
-3. Check system resources: `ollama serve` requires RAM proportional to model size.
-
-### Issue: Export Not Working
-
-**Solution:**
-1. Ensure preview renders successfully (no red errors).
-2. Check browser permissions for file downloads.
-3. Export function converts SVG → PNG/PDF; ensure diagram is valid.
+Model performance:
+- Try a smaller model (for example `neural-chat`) if memory is limited.
 
 ---
 
-## Contributing & License
+## License
 
-This is a personal project template. Modify freely for your use case.
-
-### License
-
-MIT (see LICENSE if included)
+MIT License. See the LICENSE file if included.
 
 ---
 
-## Support & Next Steps
+## Acknowledgments
 
-- **Feedback?** Add issues or enhancements to suit your workflow.
-- **Custom Models?** Edit `OLLAMA_MODEL` in `.env` and test with your preferred LLM.
-- **More Diagram Types?** Add support for Plotly, Vega, or other diagram libraries by extending the renderer and backend logic.
-
----
-
-## Changelog
-
-**v1.0.0** (2025-10-20)
-- Initial release
-- Support for Mermaid, PlantUML, DBML, Graphviz
-- Local Ollama integration
-- Full UI with export, save/load, history
-- Docker + docker-compose setup
-- Keyboard shortcuts and responsive layout
-
----
-
-Happy diagramming! 🎨
+- Mermaid for client-side rendering
+- Ollama for local LLM inference
+- React, Vite, TypeScript, and Tailwind CSS for the web stack
