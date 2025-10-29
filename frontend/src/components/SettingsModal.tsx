@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Settings, Code, Zap, Download, X } from 'lucide-react';
 import { theme } from '../theme';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
@@ -58,37 +59,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           className="px-6 py-4 border-b flex items-center justify-between"
           style={{ borderColor: theme.colors.border.medium }}
         >
-          <h2
-            className="text-xl font-bold"
-            style={{ color: theme.colors.text.primary }}
-          >
-            ⚙️ Settings
-          </h2>
+          <div className="flex items-center gap-2">
+            <Settings size={20} color={theme.colors.accent.primary} />
+            <h2
+              className="text-xl font-bold"
+              style={{ color: theme.colors.text.primary }}
+            >
+              Settings
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-2xl leading-none"
+            className="p-1 hover:bg-opacity-10 rounded transition-all"
             style={{ color: theme.colors.text.tertiary }}
           >
-            ×
+            <X size={20} />
           </button>
         </div>
 
         {/* Tabs */}
         <div
-          className="flex gap-0 border-b px-6 pt-4"
+          className="flex border-b px-6"
           style={{ borderColor: theme.colors.border.medium }}
         >
           {(['editor', 'general', 'performance'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className="px-4 py-2 text-sm font-medium transition-all border-b-2 capitalize"
+              className="px-4 py-2 text-sm font-medium transition-all border-b-2 capitalize flex items-center gap-1.5"
               style={{
                 color: activeTab === tab ? theme.colors.accent.primary : theme.colors.text.tertiary,
                 borderColor: activeTab === tab ? theme.colors.accent.primary : 'transparent',
               }}
             >
-              {tab === 'editor' ? '📝 Editor' : tab === 'general' ? '⚡ General' : '🚀 Performance'}
+              {tab === 'editor' && <Code size={14} />}
+              {tab === 'general' && <Settings size={14} />}
+              {tab === 'performance' && <Zap size={14} />}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -97,51 +104,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {activeTab === 'editor' && (
             <>
-              <div>
-                <label
-                  className="block text-sm font-medium mb-2"
-                  style={{ color: theme.colors.text.secondary }}
-                >
-                  Font Size: {tempSettings.editorFontSize}px
-                </label>
-                <input
-                  type="range"
-                  min="10"
-                  max="20"
-                  value={tempSettings.editorFontSize}
-                  onChange={(e) =>
-                    setTempSettings({
-                      ...tempSettings,
-                      editorFontSize: parseInt(e.target.value),
-                    })
-                  }
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label
-                  className="block text-sm font-medium mb-2"
-                  style={{ color: theme.colors.text.secondary }}
-                >
-                  Tab Size: {tempSettings.tabSize} spaces
-                </label>
-                <input
-                  type="range"
-                  min="2"
-                  max="8"
-                  step="2"
-                  value={tempSettings.tabSize}
-                  onChange={(e) =>
-                    setTempSettings({
-                      ...tempSettings,
-                      tabSize: parseInt(e.target.value),
-                    })
-                  }
-                  className="w-full"
-                />
-              </div>
-
               <label
                 className="flex items-center gap-3 cursor-pointer"
                 style={{ color: theme.colors.text.secondary }}
@@ -177,6 +139,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 />
                 <span className="text-sm font-medium">Auto Format on Save</span>
               </label>
+
+              <div>
+                <label
+                  className="text-sm font-medium mb-2 block"
+                  style={{ color: theme.colors.text.secondary }}
+                >
+                  Font Size: {tempSettings.editorFontSize}px
+                </label>
+                <input
+                  type="range"
+                  min="10"
+                  max="18"
+                  value={tempSettings.editorFontSize}
+                  onChange={(e) =>
+                    setTempSettings({
+                      ...tempSettings,
+                      editorFontSize: parseInt(e.target.value),
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
             </>
           )}
 
@@ -201,18 +185,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </label>
 
               <div
-                className="p-4 rounded-lg"
+                className="p-3 rounded-lg text-xs"
                 style={{
                   backgroundColor: theme.colors.bg.tertiary,
-                  border: `1px solid ${theme.colors.border.light}`,
+                  color: theme.colors.text.tertiary,
                 }}
               >
-                <p
-                  className="text-xs"
-                  style={{ color: theme.colors.text.tertiary }}
-                >
-                  💡 <strong>Tip:</strong> Use Ctrl+Enter to quickly generate diagrams
-                </p>
+                <strong>Tip:</strong> Use Ctrl+Enter to quickly generate diagrams
               </div>
             </>
           )}
@@ -220,55 +199,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {activeTab === 'performance' && (
             <>
               <div
-                className="p-4 rounded-lg space-y-3"
+                className="p-3 rounded-lg space-y-2 text-xs"
                 style={{
                   backgroundColor: theme.colors.bg.tertiary,
-                  border: `1px solid ${theme.colors.border.light}`,
+                  color: theme.colors.text.secondary,
                 }}
               >
-                <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: theme.colors.text.secondary }}>
-                    Storage Used
-                  </span>
-                  <span
-                    className="text-sm font-mono"
-                    style={{ color: theme.colors.accent.primary }}
-                  >
-                    {(JSON.stringify(localStorage).length / 1024).toFixed(2)} KB
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: theme.colors.text.secondary }}>
-                    Projects Count
-                  </span>
-                  <span
-                    className="text-sm font-mono"
-                    style={{ color: theme.colors.accent.primary }}
-                  >
-                    {JSON.parse(localStorage.getItem('viscept_projects') || '[]').length}
-                  </span>
-                </div>
+                <p>
+                  <strong>Tab Size:</strong> {tempSettings.tabSize} spaces
+                </p>
+                <p>
+                  <strong>Theme:</strong> {tempSettings.theme}
+                </p>
               </div>
-
-              <button
-                onClick={() => {
-                  localStorage.clear();
-                  alert('All data cleared');
-                  window.location.reload();
-                }}
-                className="w-full py-2 rounded-lg text-sm font-medium transition-all"
-                style={{
-                  backgroundColor: `${theme.colors.status.error}20`,
-                  color: theme.colors.status.error,
-                  border: `1px solid ${theme.colors.status.error}`,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${theme.colors.status.error}30`;
-                }}
-              >
-                🗑️ Clear All Data
-              </button>
             </>
           )}
         </div>
@@ -287,7 +230,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               border: `1px solid ${theme.colors.border.medium}`,
             }}
           >
-            Reset to Default
+            Reset
           </button>
           <button
             onClick={handleSave}
@@ -297,7 +240,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               color: '#fff',
             }}
           >
-            Save Settings
+            Save
           </button>
         </div>
       </div>

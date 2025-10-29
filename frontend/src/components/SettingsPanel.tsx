@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Code, Zap, Download, Sliders, Volume2, Bell, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { Settings, Code, Zap, Download, Sliders, Trash2, RotateCcw, Save, X } from 'lucide-react';
 import { theme } from '../theme';
 import { useSettings } from '../hooks/useSettings';
 
@@ -40,8 +40,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
             onClick={onClose}
             className="p-2 rounded-lg transition-all"
             style={{ backgroundColor: theme.colors.bg.tertiary, color: theme.colors.text.secondary }}
+            title="Close settings"
           >
-            ✕
+            <X size={20} />
           </button>
         </div>
 
@@ -222,42 +223,100 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                 </select>
               </SettingItem>
 
-              {/* Notifications */}
-              <SettingItem label="Notifications" icon={<Bell size={16} />}>
-                <Toggle
-                  checked={settings.notifications}
-                  onChange={(checked) => updateSetting('notifications', checked)}
-                />
-              </SettingItem>
+              {/* Storage Info */}
+              <div
+                className="p-4 rounded-lg space-y-2"
+                style={{
+                  backgroundColor: theme.colors.bg.tertiary,
+                  border: `1px solid ${theme.colors.border.light}`,
+                }}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="text-sm" style={{ color: theme.colors.text.secondary }}>
+                    Storage Used
+                  </span>
+                  <span
+                    className="text-sm font-mono"
+                    style={{ color: theme.colors.accent.primary }}
+                  >
+                    {(JSON.stringify(localStorage).length / 1024).toFixed(2)} KB
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-sm" style={{ color: theme.colors.text.secondary }}>
+                    Projects Count
+                  </span>
+                  <span
+                    className="text-sm font-mono"
+                    style={{ color: theme.colors.accent.primary }}
+                  >
+                    {JSON.parse(localStorage.getItem('viscept_projects') || '[]').length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Clear Data */}
+              <button
+                onClick={() => {
+                  if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+                    localStorage.clear();
+                    alert('All data cleared');
+                    window.location.reload();
+                  }
+                }}
+                className="w-full py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: `${theme.colors.status.error}20`,
+                  color: theme.colors.status.error,
+                  border: `1px solid ${theme.colors.status.error}`,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = `${theme.colors.status.error}30`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = `${theme.colors.status.error}20`;
+                }}
+              >
+                <Trash2 size={14} />
+                Clear All Data
+              </button>
             </>
           )}
         </div>
 
         {/* Footer */}
         <div
-          className="flex items-center justify-between px-8 py-4 border-t"
+          className="px-8 py-4 border-t flex gap-3 justify-end"
           style={{ borderColor: theme.colors.border.medium }}
         >
           <button
             onClick={() => resetSettings()}
             className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
             style={{
-              backgroundColor: `${theme.colors.status.error}10`,
-              color: theme.colors.status.error,
-              border: `1px solid ${theme.colors.status.error}30`,
+              backgroundColor: theme.colors.bg.tertiary,
+              color: theme.colors.text.primary,
+              border: `1px solid ${theme.colors.border.medium}`,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = `${theme.colors.accent.primary}10`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
             }}
           >
             <RotateCcw size={14} />
-            Reset
+            Reset to Default
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
             style={{
               background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
               color: '#fff',
             }}
           >
+            <Save size={14} />
             Done
           </button>
         </div>

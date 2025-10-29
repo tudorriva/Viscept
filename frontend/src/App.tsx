@@ -15,6 +15,7 @@ import { generateDiagram, formatCode as formatCodeAPI, fetchDemo } from './utils
 import { DIAGRAM_EXAMPLES, DiagramExample } from './utils/examples';
 import { theme } from './theme';
 import './index.css';
+import { AlertCircle } from 'lucide-react';
 
 type DiagramType = 'mermaid' | 'dbml' | 'graphviz';
 
@@ -271,19 +272,22 @@ export const App: React.FC = () => {
       {/* Error Toast */}
       {error && (
         <div
-          className="fixed bottom-6 right-6 max-w-sm p-4 rounded-lg animate-slide-in-up border-l-4"
+          className="fixed bottom-6 right-6 max-w-sm p-4 rounded-lg animate-slide-in-up border-l-4 flex gap-3"
           style={{
             backgroundColor: theme.colors.bg.secondary,
             borderColor: theme.colors.status.error,
             borderLeftWidth: '4px',
           }}
         >
-          <p className="text-sm font-semibold" style={{ color: theme.colors.status.error }}>
-            ❌ Error
-          </p>
-          <p className="text-xs mt-1" style={{ color: theme.colors.text.secondary }}>
-            {error}
-          </p>
+          <AlertCircle size={18} style={{ color: theme.colors.status.error, flexShrink: 0 }} />
+          <div>
+            <p className="text-sm font-semibold" style={{ color: theme.colors.status.error }}>
+              Error
+            </p>
+            <p className="text-xs mt-1" style={{ color: theme.colors.text.secondary }}>
+              {error}
+            </p>
+          </div>
         </div>
       )}
     </div>

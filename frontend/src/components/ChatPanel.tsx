@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Send, Zap, BookOpen } from 'lucide-react';
 import { Icon } from './Icon';
+import { IconLogo, Wordmark } from '../assets/logos';
 import { theme } from '../theme';
 
 interface ChatPanelProps {
@@ -40,29 +41,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         background: `linear-gradient(to bottom, ${theme.colors.bg.primary}, ${theme.colors.bg.secondary})`,
       }}
     >
-      {/* Header */}
+      {/* Header with Logo */}
       <div className="mb-8 pb-6 border-b" style={{ borderColor: theme.colors.border.medium }}>
-        <div className="flex items-center gap-3 mb-2">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{
-              background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
-            }}
-          >
-            <span className="text-xl font-bold">V</span>
-          </div>
-          <div>
-            <h1
-              className="text-2xl font-bold"
-              style={{ color: theme.colors.text.primary }}
-            >
-              Viscept
-            </h1>
-            <p className="text-xs mt-1" style={{ color: theme.colors.text.tertiary }}>
-              AI Diagram Studio
-            </p>
-          </div>
-        </div>
+        <Wordmark size={20} />
       </div>
 
       {/* Diagram Type Selector */}

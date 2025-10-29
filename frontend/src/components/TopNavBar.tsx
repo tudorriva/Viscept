@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Badge } from './Badge';
 import { StatusIndicator } from './StatusIndicator';
 import { Icon } from './Icon';
+import { IconLogo } from '../assets/logos';
 import { theme } from '../theme';
 
 interface TopNavBarProps {
@@ -36,14 +37,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
     >
       {/* Left Section - Logo & Branding */}
       <div className="flex items-center gap-4">
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg"
-          style={{
-            background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
-          }}
-        >
-          V
-        </div>
+        <IconLogo size={40} />
         <div>
           <h1
             className="text-lg font-bold tracking-tight"

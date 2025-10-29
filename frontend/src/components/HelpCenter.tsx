@@ -19,7 +19,18 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
         <div className="space-y-4">
           <div>
             <h3 className="font-semibold mb-2 flex items-center gap-2">
-              <span>1️⃣</span> Create a Project
+              <span style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px',
+                backgroundColor: theme.colors.accent.primary,
+                color: '#fff',
+                borderRadius: '50%',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>1</span> Getting Started
             </h3>
             <p className="text-sm" style={{ color: theme.colors.text.secondary }}>
               Click the "✨ New Project" button in the sidebar to create a new diagram project.
@@ -27,7 +38,18 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
           </div>
           <div>
             <h3 className="font-semibold mb-2 flex items-center gap-2">
-              <span>2️⃣</span> Write Your Description
+              <span style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px',
+                backgroundColor: theme.colors.accent.primary,
+                color: '#fff',
+                borderRadius: '50%',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>2</span> Describe Your Diagram
             </h3>
             <p className="text-sm" style={{ color: theme.colors.text.secondary }}>
               Describe your diagram in natural language. Be specific about relationships and structure.
@@ -35,7 +57,18 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
           </div>
           <div>
             <h3 className="font-semibold mb-2 flex items-center gap-2">
-              <span>3️⃣</span> Generate
+              <span style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px',
+                backgroundColor: theme.colors.accent.primary,
+                color: '#fff',
+                borderRadius: '50%',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>3</span> Generate
             </h3>
             <p className="text-sm" style={{ color: theme.colors.text.secondary }}>
               Click "✨ Generate Diagram" or press Ctrl+Enter. Wait for the AI to create your code.
@@ -43,7 +76,18 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ isOpen, onClose }) => {
           </div>
           <div>
             <h3 className="font-semibold mb-2 flex items-center gap-2">
-              <span>4️⃣</span> Edit & Export
+              <span style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                width: '20px',
+                height: '20px',
+                backgroundColor: theme.colors.accent.primary,
+                color: '#fff',
+                borderRadius: '50%',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>4</span> Edit & Export
             </h3>
             <p className="text-sm" style={{ color: theme.colors.text.secondary }}>
               Fine-tune the code in the editor, then export as PNG, SVG, or PDF.
