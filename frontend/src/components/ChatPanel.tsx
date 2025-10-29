@@ -8,6 +8,7 @@ interface ChatPanelProps {
   isLoading: boolean;
   onGenerate: () => void;
   onLoadDemo: () => void;
+  onShowExamples?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -18,6 +19,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   isLoading,
   onGenerate,
   onLoadDemo,
+  onShowExamples,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -99,6 +101,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         >
           <span>📁</span>
           Load Demo
+        </button>
+
+        <button
+          onClick={onShowExamples}
+          className="btn-secondary w-full text-sm"
+        >
+          <span>📚</span>
+          Examples Gallery
         </button>
       </div>
 

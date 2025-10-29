@@ -5,8 +5,14 @@ import { ChatPanel } from './components/ChatPanel';
 import { CodeEditor } from './components/CodeEditor';
 import { DiagramPreview } from './components/DiagramPreview';
 import { ControlPanel } from './components/ControlPanel';
+import { SettingsModal } from './components/SettingsModal';
+import { OnboardingTour } from './components/OnboardingTour';
+import { ExamplesGallery } from './components/ExamplesGallery';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { useProjects } from './hooks/useProjects';
+import { useLocalStorage } from './hooks/useLocalStorage';
 import { generateDiagram, formatCode as formatCodeAPI, fetchDemo } from './utils/api';
+import { DIAGRAM_EXAMPLES, DiagramExample } from './utils/examples';
 import { theme } from './theme';
 import './index.css';
 
@@ -35,6 +41,8 @@ export const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isOllamaOnline, setIsOllamaOnline] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useLocalStorage('viscept_show_onboarding', projects.length === 0);
+  const [showExamples, setShowExamples] = useState(false);
 
   // Sync current project
   useEffect(() => {
@@ -66,6 +74,14 @@ export const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && prompt.trim()) {
         handleGenerate();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        setShowSettings(true);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowExamples(true);
       }
     };
 
@@ -139,6 +155,22 @@ export const App: React.FC = () => {
     [createProject, openProject]
   );
 
+  const handleSelectExample = useCallback(
+    (example: DiagramExample) => {
+      if (!currentProject) {
+        const project = createProject(example.title, example.type, example.code, example.prompt);
+        openProject(project.id);
+      } else {
+        updateProject(currentProject.id, {
+          code: example.code,
+          prompt: example.prompt,
+          diagramType: example.type,
+        });
+      }
+    },
+    [currentProject, createProject, updateProject, openProject]
+  );
+
   return (
     <div
       className="flex flex-col h-screen w-screen"
@@ -148,7 +180,8 @@ export const App: React.FC = () => {
       <TopNavBar
         isOllamaOnline={isOllamaOnline}
         currentModel="Mistral 7B"
-        onSettingsClick={() => setShowSettings(!showSettings)}
+        onSettingsClick={() => setShowSettings(true)}
+        onHelpClick={() => setShowExamples(true)}
       />
 
       {/* Main Content */}
@@ -182,6 +215,7 @@ export const App: React.FC = () => {
             isLoading={isLoading}
             onGenerate={handleGenerate}
             onLoadDemo={handleLoadDemo}
+            onShowExamples={() => setShowExamples(true)}
           />
 
           {/* Control Panel */}
@@ -201,7 +235,7 @@ export const App: React.FC = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           <CodeEditor
             code={code}
-            language={diagramType}
+            language={diagramType} // ← Make sure this is passed correctly
             onChange={setCode}
             onFormat={handleFormatCode}
           />
@@ -217,6 +251,22 @@ export const App: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <OnboardingTour
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onCreateProject={handleCreateProject}
+      />
+      <ExamplesGallery
+        isOpen={showExamples}
+        onClose={() => setShowExamples(false)}
+        onSelectExample={handleSelectExample}
+      />
+
+      {/* Indicators */}
+      <OfflineIndicator />
 
       {/* Error Toast */}
       {error && (

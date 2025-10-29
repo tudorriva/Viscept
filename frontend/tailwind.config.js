@@ -31,6 +31,8 @@ export default {
         'slide-in-up': 'slideInUp 0.4s ease-out',
         'slide-in-down': 'slideInDown 0.4s ease-out',
         'glow': 'glow 2s ease-in-out infinite',
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'bounce-gentle': 'bounce 2s infinite',
       },
       keyframes: {
         fadeIn: {

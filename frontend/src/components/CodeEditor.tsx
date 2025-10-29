@@ -11,7 +11,7 @@ interface CodeEditorProps {
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   code,
-  language,
+  language = 'mermaid', // ← Add default
   onChange,
   onFormat,
 }) => {
@@ -65,7 +65,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
               className="text-sm font-bold uppercase tracking-wide"
               style={{ color: theme.colors.text.primary }}
             >
-              {language.toUpperCase()} Code
+              {(language || 'text').toUpperCase()} Code
             </h2>
             <p
               className="text-xs mt-0.5"
@@ -130,7 +130,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       >
         <span>Lines: {code.split('\n').length}</span>
         <span>Chars: {code.length}</span>
-        <span>Words: {code.split(/\s+/).filter(w => w.length > 0).length}</span>
+        <span>Words: {code.split(/\s+/).filter((w) => w.length > 0).length}</span>
       </div>
     </div>
   );
