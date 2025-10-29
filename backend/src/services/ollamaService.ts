@@ -12,7 +12,7 @@ export interface OllamaResponse {
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434/api/generate';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral';
-const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || '30000', 10);
+const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || '120000', 10);
 const STRICT_MODE = process.env.STRICT_MODE === 'true';
 const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_OUTPUT_LENGTH || '10000', 10);
 
@@ -21,15 +21,15 @@ const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_OUTPUT_LENGTH || '10000', 10)
  */
 function buildSystemPrompt(diagramType: string): string {
   const typeInstructions: Record<string, string> = {
-    mermaid: `You are a Mermaid diagram code generator. Generate only valid Mermaid code. Do not include markdown fences, explanations, or any text outside the code. Start directly with graph, flowchart, sequenceDiagram, classDiagram, or other Mermaid keyword. The output must be syntactically correct Mermaid code only.`,
-    plantuml: `You are a PlantUML diagram code generator. Generate only valid PlantUML code. Do not include markdown fences, explanations, or any text outside the code. Start directly with @startuml and end with @enduml. The output must be syntactically correct PlantUML code only.`,
-    dbml: `You are a DBML (Database Markup Language) code generator. Generate only valid DBML code for database schemas. Do not include markdown fences, explanations, or any text outside the code. The output must be syntactically correct DBML code only.`,
-    graphviz: `You are a Graphviz (DOT language) diagram code generator. Generate only valid DOT syntax. Do not include markdown fences, explanations, or any text outside the code. Start directly with 'graph' or 'digraph'. The output must be syntactically correct DOT code only.`,
+    mermaid: `You are a code generator. Output ONLY valid Mermaid diagram code. No explanations, no prose, no markdown fences. Start immediately with the diagram keyword (graph, flowchart, classDiagram, sequenceDiagram, stateDiagram, erDiagram). Every line must be valid Mermaid syntax. Output code only.`,
+    plantuml: `You are a code generator. Output ONLY valid PlantUML code. No explanations, no prose, no markdown fences. Start with @startuml and end with @enduml. Every line must be valid PlantUML syntax. Output code only.`,
+    dbml: `You are a code generator. Output ONLY valid DBML code for database schemas. No explanations, no prose, no markdown fences. Start with Table definitions. Every line must be valid DBML syntax. Output code only.`,
+    graphviz: `You are a code generator. Output ONLY valid Graphviz DOT code. No explanations, no prose, no markdown fences. Start with 'digraph' or 'graph'. Every line must be valid DOT syntax. Output code only.`,
   };
 
   return (
     typeInstructions[diagramType] ||
-    'Generate code. Do not include explanations or markdown fences. Code only.'
+    'Output code only. No explanations or markdown fences.'
   );
 }
 
@@ -40,10 +40,118 @@ function extractCodeFromResponse(response: string, diagramType: string): string 
   let code = response.trim();
 
   // Remove markdown code fences
-  code = code.replace(/```[\w]*\n?/g, '');
+  code = code.replace(/```[\w-]*\n?/g, '');
   code = code.replace(/```/g, '');
 
-  // For PlantUML, ensure @startuml/@enduml are present
+  // If the model prepended prose (e.g. "Here's the Mermaid code..."), strip text
+  // before the first recognized diagram token for the requested diagram type.
+  const tokensByType: Record<string, RegExp[]> = {
+    mermaid: [/\b(classDiagram|graph|flowchart|sequenceDiagram|stateDiagram|erDiagram)\b/i],
+    plantuml: [/@startuml/i],
+    dbml: [/^\s*Table\s+/im],
+    graphviz: [/\b(digraph|graph)\b/i],
+  };
+
+  const tokens = tokensByType[diagramType] || [
+    /\b(classDiagram|graph|flowchart|sequenceDiagram|stateDiagram|erDiagram)\b/i,
+    /@startuml/i,
+    /^\s*Table\s+/im,
+    /\b(digraph|graph)\b/i,
+  ];
+
+  let firstIndex = -1;
+  for (const rx of tokens) {
+    const m = code.match(rx);
+    if (m && m.index !== undefined) {
+      const idx = m.index;
+      if (firstIndex === -1 || idx < firstIndex) firstIndex = idx;
+    }
+  }
+
+  if (firstIndex > 0) {
+    code = code.substring(firstIndex).trim();
+    console.log('[Ollama] Stripped leading prose, keeping code from index', firstIndex);
+  }
+
+  // Sanitize Mermaid-specific issues: remove trailing prose and move relationship
+  // lines out of class bodies so Mermaid parser can accept the code.
+  function sanitizeMermaid(codeText: string): string {
+    const lines = codeText.split('\n');
+
+    // 1) Truncate at the first obvious English sentence or prose line
+    let truncateIndex = -1;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].trim();
+      if (!t) continue;
+
+      // Skip code patterns
+      const isCodeLine = /^\s*(classDiagram|graph|flowchart|sequenceDiagram|stateDiagram|erDiagram|\w+\s*[<\-:|*_]|[\w<>|:*-]+\s*$)/.test(t);
+      
+      // Detect prose: 3+ words, looks like English sentence
+      const wordCount = t.split(/\s+/).length;
+      const looksLikeSentence = /^[A-Z][a-z]+ [a-z]+ [a-z]+/.test(t);
+      const isProseLine = looksLikeSentence && !isCodeLine && wordCount >= 3;
+      
+      if (isProseLine) {
+        console.log(`[Ollama] Truncating at line ${i}: "${t.substring(0, 50)}..."`);
+        truncateIndex = i;
+        break;
+      }
+    }
+
+    const usefulLines = truncateIndex >= 0 ? lines.slice(0, truncateIndex) : lines;
+
+    // 2) Normalize: remove empty lines, ensure single spacing
+    const normalized: string[] = [];
+    for (const raw of usefulLines) {
+      const trimmed = raw.trim();
+      if (trimmed) {
+        normalized.push(trimmed);
+      }
+    }
+
+    // 3) Insert newlines after class definitions to prevent concatenation
+    const out: string[] = [];
+    let inBlock = false;
+
+    for (let i = 0; i < normalized.length; i++) {
+      const line = normalized[i];
+
+      // classDiagram or class definition
+      if (/^\s*(classDiagram|abstract\s+class|class)\b/i.test(line)) {
+        out.push(line);
+        if (line.includes('{')) {
+          inBlock = true;
+        }
+        continue;
+      }
+
+      if (inBlock) {
+        out.push(line);
+        if (line === '}') {
+          inBlock = false;
+          out.push(''); // blank line after block
+        }
+        continue;
+      }
+
+      // Relationships and other lines
+      out.push(line);
+    }
+
+    return out.join('\n').trim();
+  }
+
+  if (diagramType === 'mermaid') {
+    try {
+      code = sanitizeMermaid(code);
+    } catch (err) {
+      console.warn('[Ollama] Mermaid sanitization failed:', err);
+    }
+  }
+
+  // For PlantUML ensure boundaries are present
   if (diagramType === 'plantuml') {
     if (!code.includes('@startuml')) {
       code = '@startuml\n' + code;

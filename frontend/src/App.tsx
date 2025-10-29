@@ -47,6 +47,7 @@ export const App: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
+    setCode(''); // Clear code immediately
 
     try {
       const response = await generateDiagram({
@@ -54,7 +55,7 @@ export const App: React.FC = () => {
         diagramType,
       });
 
-      setCode(response.code);
+      setCode(response.code); // Replace, not append
       addToHistory(response.code, diagramType);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate diagram';

@@ -19,6 +19,11 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
   useEffect(() => {
     if (!code.trim() || !containerRef.current) return;
 
+    // Clear previous render
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+
     const render = async () => {
       setLoading(true);
       setError(null);
@@ -41,7 +46,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
     };
 
     render();
-  }, [code, language]);
+  }, [code, language]); // Triggers on EVERY code or language change
 
   const renderMermaid = async () => {
     if (!containerRef.current) return;
@@ -50,7 +55,10 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
 
     try {
       const { svg } = await mermaid.render('mermaid-diagram', code);
-      containerRef.current.innerHTML = svg;
+      // Check containerRef again after async operation
+      if (containerRef.current) {
+        containerRef.current.innerHTML = svg;
+      }
     } catch (error) {
       throw new Error(`Mermaid render error: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -65,7 +73,10 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
 
       const response = await fetch(svgUrl);
       const svg = await response.text();
-      containerRef.current.innerHTML = svg;
+      // Check containerRef again after async operation
+      if (containerRef.current) {
+        containerRef.current.innerHTML = svg;
+      }
     } catch (error) {
       throw new Error(
         `PlantUML render error: ${error instanceof Error ? error.message : String(error)}`
@@ -81,7 +92,10 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
       const mermaidCode = dbmlToMermaid(code);
       mermaid.initialize({ startOnLoad: false, theme: 'default' });
       const { svg } = await mermaid.render('dbml-as-mermaid', mermaidCode);
-      containerRef.current.innerHTML = svg;
+      // Check containerRef again after async operation
+      if (containerRef.current) {
+        containerRef.current.innerHTML = svg;
+      }
     } catch (error) {
       throw new Error(
         `DBML render error: ${error instanceof Error ? error.message : String(error)}`
@@ -100,7 +114,10 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
 
       mermaid.initialize({ startOnLoad: false, theme: 'default' });
       const { svg } = await mermaid.render('graphviz-diagram', mermaidCode);
-      containerRef.current.innerHTML = svg;
+      // Check containerRef again after async operation
+      if (containerRef.current) {
+        containerRef.current.innerHTML = svg;
+      }
     } catch (error) {
       throw new Error(
         `Graphviz render error: ${error instanceof Error ? error.message : String(error)}`

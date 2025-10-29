@@ -5,10 +5,12 @@
 import axios, { AxiosInstance } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// use VITE_API_TIMEOUT (ms) or fallback to 120000 (2 min)
+const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '120000', 10);
 
 const client: AxiosInstance = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
