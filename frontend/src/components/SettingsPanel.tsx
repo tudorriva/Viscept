@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Settings, Code, Zap, Download, Sliders, Volume2, Bell, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { theme } from '../theme';
 import { useSettings } from '../hooks/useSettings';
 
@@ -29,19 +30,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
           className="flex items-center justify-between px-8 py-6 border-b"
           style={{ borderColor: theme.colors.border.medium }}
         >
-          <h2 className="text-2xl font-bold" style={{ color: theme.colors.text.primary }}>
-            ⚙️ Settings
-          </h2>
+          <div className="flex items-center gap-3">
+            <Settings size={24} color={theme.colors.accent.primary} />
+            <h2 className="text-2xl font-bold" style={{ color: theme.colors.text.primary }}>
+              Settings
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-2xl transition-all"
-            style={{ color: theme.colors.text.secondary }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = theme.colors.text.primary;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = theme.colors.text.secondary;
-            }}
+            className="p-2 rounded-lg transition-all"
+            style={{ backgroundColor: theme.colors.bg.tertiary, color: theme.colors.text.secondary }}
           >
             ✕
           </button>
@@ -52,19 +50,20 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
           className="flex border-b px-8"
           style={{ borderColor: theme.colors.border.medium }}
         >
-          {['editor', 'generation', 'export'].map((tab) => (
+          {(['editor', 'generation', 'export'] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab as typeof activeTab)}
-              className="px-4 py-3 font-medium text-sm border-b-2 transition-all capitalize"
+              onClick={() => setActiveTab(tab)}
+              className="px-4 py-3 text-sm font-medium transition-all border-b-2 capitalize flex items-center gap-2"
               style={{
                 color: activeTab === tab ? theme.colors.accent.primary : theme.colors.text.secondary,
                 borderColor: activeTab === tab ? theme.colors.accent.primary : 'transparent',
               }}
             >
-              {tab === 'editor' && '📝 Editor'}
-              {tab === 'generation' && '✨ Generation'}
-              {tab === 'export' && '💾 Export'}
+              {tab === 'editor' && <Code size={16} />}
+              {tab === 'generation' && <Zap size={16} />}
+              {tab === 'export' && <Download size={16} />}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -74,7 +73,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
           {activeTab === 'editor' && (
             <>
               {/* Font Size */}
-              <SettingItem label="Font Size" icon="🔤">
+              <SettingItem label="Font Size" icon={<Code size={16} />}>
                 <div className="flex items-center gap-4">
                   <input
                     type="range"
@@ -94,7 +93,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Word Wrap */}
-              <SettingItem label="Word Wrap" icon="↩️">
+              <SettingItem label="Word Wrap" icon={<Sliders size={16} />}>
                 <Toggle
                   checked={settings.wordWrap}
                   onChange={(checked) => updateSetting('wordWrap', checked)}
@@ -102,7 +101,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Line Numbers */}
-              <SettingItem label="Show Line Numbers" icon="🔢">
+              <SettingItem label="Show Line Numbers" icon={<Code size={16} />}>
                 <Toggle
                   checked={settings.showLineNumbers}
                   onChange={(checked) => updateSetting('showLineNumbers', checked)}
@@ -110,7 +109,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Minimap */}
-              <SettingItem label="Show Minimap" icon="🗺️">
+              <SettingItem label="Show Minimap" icon={<Sliders size={16} />}>
                 <Toggle
                   checked={settings.minimap}
                   onChange={(checked) => updateSetting('minimap', checked)}
@@ -122,7 +121,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
           {activeTab === 'generation' && (
             <>
               {/* Model */}
-              <SettingItem label="AI Model" icon="🤖">
+              <SettingItem label="AI Model" icon={<Zap size={16} />}>
                 <select
                   value={settings.model}
                   onChange={(e) => updateSetting('model', e.target.value)}
@@ -140,7 +139,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Temperature */}
-              <SettingItem label="Temperature (Creativity)" icon="🔥">
+              <SettingItem label="Temperature (Creativity)" icon={<Zap size={16} />}>
                 <div className="flex items-center gap-4">
                   <input
                     type="range"
@@ -161,7 +160,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Max Tokens */}
-              <SettingItem label="Max Tokens" icon="📏">
+              <SettingItem label="Max Tokens" icon={<Sliders size={16} />}>
                 <input
                   type="number"
                   value={settings.maxTokens}
@@ -176,7 +175,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Auto Save */}
-              <SettingItem label="Auto Save" icon="💾">
+              <SettingItem label="Auto Save" icon={<Save size={16} />}>
                 <Toggle
                   checked={settings.autoSave}
                   onChange={(checked) => updateSetting('autoSave', checked)}
@@ -188,7 +187,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
           {activeTab === 'export' && (
             <>
               {/* Export Quality */}
-              <SettingItem label="Export Quality" icon="✨">
+              <SettingItem label="Export Quality" icon={<Download size={16} />}>
                 <select
                   value={settings.exportQuality}
                   onChange={(e) => updateSetting('exportQuality', e.target.value as any)}
@@ -206,7 +205,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Default Diagram Type */}
-              <SettingItem label="Default Diagram Type" icon="📊">
+              <SettingItem label="Default Diagram Type" icon={<Code size={16} />}>
                 <select
                   value={settings.defaultDiagramType}
                   onChange={(e) => updateSetting('defaultDiagramType', e.target.value as any)}
@@ -224,7 +223,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               </SettingItem>
 
               {/* Notifications */}
-              <SettingItem label="Notifications" icon="🔔">
+              <SettingItem label="Notifications" icon={<Bell size={16} />}>
                 <Toggle
                   checked={settings.notifications}
                   onChange={(checked) => updateSetting('notifications', checked)}
@@ -240,37 +239,26 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
           style={{ borderColor: theme.colors.border.medium }}
         >
           <button
-            onClick={resetSettings}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            onClick={() => resetSettings()}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
             style={{
-              backgroundColor: 'transparent',
-              color: theme.colors.status.warning,
-              border: `1px solid ${theme.colors.status.warning}20`,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = `${theme.colors.status.warning}10`;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
+              backgroundColor: `${theme.colors.status.error}10`,
+              color: theme.colors.status.error,
+              border: `1px solid ${theme.colors.status.error}30`,
             }}
           >
-            🔄 Reset to Defaults
+            <RotateCcw size={14} />
+            Reset
           </button>
           <button
             onClick={onClose}
-            className="px-6 py-2 rounded-lg text-sm font-medium transition-all"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
             style={{
               background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
               color: '#fff',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
           >
-            Close
+            Done
           </button>
         </div>
       </div>
@@ -283,7 +271,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
  */
 interface SettingItemProps {
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -294,7 +282,7 @@ const SettingItem: React.FC<SettingItemProps> = ({ label, icon, children }) => {
         className="flex items-center gap-2 text-sm font-semibold mb-3"
         style={{ color: theme.colors.text.primary }}
       >
-        <span>{icon}</span>
+        {icon}
         {label}
       </label>
       {children}
@@ -320,7 +308,7 @@ const Toggle: React.FC<ToggleProps> = ({ checked, onChange }) => {
       }}
     >
       <span
-        className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+        className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
         style={{
           transform: checked ? 'translateX(20px)' : 'translateX(2px)',
         }}

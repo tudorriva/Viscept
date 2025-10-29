@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ChevronRight, ChevronLeft, X, Zap, Folder, Edit3, Palette, GitBranch, Download, Sparkles } from 'lucide-react';
 import { theme } from '../theme';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
@@ -11,61 +12,57 @@ interface OnboardingTourProps {
 const TOUR_STEPS = [
   {
     step: 1,
-    title: '👋 Welcome to Viscept',
+    title: 'Welcome to Viscept',
     description: 'AI-powered diagram generator using local Mistral AI. Create professional diagrams from natural language.',
-    icon: '✨',
+    icon: Sparkles,
   },
   {
     step: 2,
-    title: '📁 Create Projects',
+    title: 'Create Projects',
     description: 'Organize your diagrams in projects. All your work is saved locally in your browser.',
-    icon: '📁',
+    icon: Folder,
   },
   {
     step: 3,
-    title: '✍️ Describe Your Diagram',
+    title: 'Describe Your Diagram',
     description: 'Write a description of what you want to create. Be specific about elements, relationships, and details.',
-    icon: '✍️',
+    icon: Edit3,
   },
   {
     step: 4,
-    title: '🎨 Choose Diagram Type',
+    title: 'Choose Diagram Type',
     description: 'Select between Mermaid (flowcharts, sequences), DBML (databases), or Graphviz (architectures).',
-    icon: '🎨',
+    icon: Palette,
   },
   {
     step: 5,
-    title: '⚡ Generate',
+    title: 'Generate',
     description: 'Click Generate or press Ctrl+Enter. Watch your diagram come to life in real-time!',
-    icon: '⚡',
+    icon: Zap,
   },
   {
     step: 6,
-    title: '📝 Edit & Refine',
+    title: 'Edit & Refine',
     description: 'Edit the generated code directly. See changes instantly in the preview panel.',
-    icon: '📝',
+    icon: GitBranch,
   },
   {
     step: 7,
-    title: '💾 Export & Share',
+    title: 'Export & Share',
     description: 'Export as PNG, SVG, or PDF. Save projects locally or share with your team.',
-    icon: '💾',
+    icon: Download,
   },
   {
     step: 8,
-    title: '🚀 You\'re Ready!',
+    title: "You're Ready!",
     description: 'Start creating amazing diagrams. Check the Examples Gallery for inspiration!',
-    icon: '🚀',
+    icon: Sparkles,
   },
 ];
 
 export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isOpen, onClose, onCreateProject }) => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [showTourAgain, setShowTourAgain] = useLocalStorage('viscept_show_tour', true);
-
-  if (!isOpen) return null;
-
-  const step = TOUR_STEPS[currentStep];
+  const [, setOnboardingDismissed] = useLocalStorage('viscept_onboarding_done', false);
 
   const handleNext = () => {
     if (currentStep < TOUR_STEPS.length - 1) {
@@ -76,18 +73,23 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isOpen, onClose,
   };
 
   const handleClose = () => {
-    setShowTourAgain(false);
+    setOnboardingDismissed(true);
     onClose();
   };
+
+  if (!isOpen) return null;
+
+  const step = TOUR_STEPS[currentStep];
+  const Icon = step.icon;
 
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
       onClick={handleClose}
     >
       <div
-        className="rounded-lg w-full max-w-md shadow-2xl overflow-hidden"
+        className="rounded-lg w-full max-w-2xl shadow-2xl overflow-hidden"
         style={{ backgroundColor: theme.colors.bg.secondary }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -107,7 +109,14 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isOpen, onClose,
 
         {/* Content */}
         <div className="p-8 text-center">
-          <div className="text-6xl mb-4">{step.icon}</div>
+          <div className="mb-6 flex justify-center">
+            <div
+              className="p-4 rounded-full"
+              style={{ backgroundColor: `${theme.colors.accent.primary}20` }}
+            >
+              <Icon size={48} color={theme.colors.accent.primary} />
+            </div>
+          </div>
           <h2
             className="text-2xl font-bold mb-3"
             style={{ color: theme.colors.text.primary }}
@@ -123,7 +132,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isOpen, onClose,
 
           {/* Step Counter */}
           <div
-            className="text-xs mb-6"
+            className="text-xs mb-8"
             style={{ color: theme.colors.text.tertiary }}
           >
             Step {step.step} of {TOUR_STEPS.length}
@@ -137,16 +146,14 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isOpen, onClose,
                   handleClose();
                   onCreateProject('My First Diagram');
                 }}
-                className="w-full py-3 rounded-lg font-medium text-sm transition-all"
+                className="w-full py-3 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2"
                 style={{
                   background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
                   color: '#fff',
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '0.9';
-                }}
               >
-                🎉 Create My First Diagram
+                <Sparkles size={16} />
+                Create My First Diagram
               </button>
             )}
 
@@ -154,25 +161,28 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isOpen, onClose,
               <button
                 onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
                 disabled={currentStep === 0}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
                 style={{
                   backgroundColor: theme.colors.bg.tertiary,
                   color: theme.colors.text.primary,
                   border: `1px solid ${theme.colors.border.medium}`,
                   opacity: currentStep === 0 ? 0.5 : 1,
+                  cursor: currentStep === 0 ? 'not-allowed' : 'pointer',
                 }}
               >
-                ← Back
+                <ChevronLeft size={16} />
+                Back
               </button>
               <button
                 onClick={handleNext}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
                 style={{
                   background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
                   color: '#fff',
                 }}
               >
-                {currentStep === TOUR_STEPS.length - 1 ? 'Done' : 'Next →'}
+                {currentStep === TOUR_STEPS.length - 1 ? 'Done' : 'Next'}
+                <ChevronRight size={16} />
               </button>
             </div>
 
@@ -184,34 +194,10 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isOpen, onClose,
                 color: theme.colors.text.tertiary,
                 border: 'none',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = theme.colors.text.secondary;
-              }}
             >
               Skip Tour
             </button>
           </div>
-        </div>
-
-        {/* Checkbox */}
-        <div
-          className="px-8 py-4 border-t flex items-center gap-2"
-          style={{ borderColor: theme.colors.border.medium }}
-        >
-          <input
-            type="checkbox"
-            id="show-again"
-            checked={showTourAgain}
-            onChange={(e) => setShowTourAgain(e.target.checked)}
-            className="w-4 h-4"
-          />
-          <label
-            htmlFor="show-again"
-            className="text-xs flex-1"
-            style={{ color: theme.colors.text.tertiary }}
-          >
-            Show on next visit
-          </label>
         </div>
       </div>
     </div>

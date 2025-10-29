@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
+import { Eye, AlertCircle, Loader } from 'lucide-react';
+import { theme } from '../theme';
+import { convertDBMLToMermaid } from '../utils/converters';
 
 interface DiagramPreviewProps {
   code: string;
@@ -139,7 +142,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
       <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-gradient-to-br from-green-500/20 to-cyan-600/20 flex items-center justify-center">
-            <span className="text-sm">👁️</span>
+            <Eye size={16} color={theme.colors.accent.primary} />
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide">Preview</h2>
@@ -152,21 +155,24 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
       <div className="flex-1 overflow-auto flex flex-col items-center justify-center p-6">
         {loading && (
           <div className="flex flex-col items-center gap-3 text-slate-400">
-            <div className="animate-spin text-3xl">⏳</div>
+            <Loader size={28} className="animate-spin" color={theme.colors.text.secondary} />
             <p className="text-sm font-medium">Rendering diagram...</p>
           </div>
         )}
 
         {error && (
           <div className="p-6 rounded-lg bg-red-900/20 border border-red-500/30 max-w-md">
-            <p className="text-sm font-semibold text-red-400 mb-2">❌ Render Error</p>
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle size={16} color="#ef4444" />
+              <p className="text-sm font-semibold text-red-400">Render Error</p>
+            </div>
             <p className="text-xs text-red-300 font-mono">{error}</p>
           </div>
         )}
 
         {!code.trim() && !loading && !error && (
           <div className="text-center">
-            <div className="text-5xl mb-4 opacity-50">📊</div>
+            <Eye size={48} color={theme.colors.text.secondary} className="mb-4 opacity-50" />
             <p className="text-slate-400 text-sm">Generate or paste code to render</p>
           </div>
         )}

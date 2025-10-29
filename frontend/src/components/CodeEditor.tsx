@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import { Wand2 } from 'lucide-react';
 import { theme } from '../theme';
 
 interface CodeEditorProps {
@@ -11,7 +12,7 @@ interface CodeEditorProps {
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   code,
-  language = 'mermaid', // ← Add default
+  language = 'mermaid',
   onChange,
   onFormat,
 }) => {
@@ -19,19 +20,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   const handleEditorMount = (editor: any) => {
     editorRef.current = editor;
-  };
-
-  const getLanguageMode = (lang: string): string => {
-    switch (lang) {
-      case 'mermaid':
-        return 'markdown';
-      case 'dbml':
-        return 'text';
-      case 'graphviz':
-        return 'text';
-      default:
-        return 'text';
-    }
   };
 
   const getEditorLanguage = (): string => {
@@ -58,7 +46,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             className="w-8 h-8 rounded flex items-center justify-center"
             style={{ backgroundColor: `${theme.colors.accent.primary}20` }}
           >
-            <span className="text-sm">📝</span>
+            <Wand2 size={16} color={theme.colors.accent.primary} />
           </div>
           <div>
             <h2
@@ -77,7 +65,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         </div>
         <button
           onClick={onFormat}
-          className="px-3 py-2 rounded-lg text-sm font-medium transition-all"
+          className="px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
           style={{
             backgroundColor: theme.colors.bg.tertiary,
             color: theme.colors.accent.primary,
@@ -90,7 +78,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
           }}
         >
-          ✨ Format
+          <Wand2 size={14} />
+          Format
         </button>
       </div>
 

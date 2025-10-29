@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { Badge } from './Badge';
+import { StatusIndicator } from './StatusIndicator';
+import { Icon } from './Icon';
 import { theme } from '../theme';
 
 interface TopNavBarProps {
   isOllamaOnline: boolean;
   currentModel: string;
   onSettingsClick: () => void;
-  onHelpClick?: () => void;
+  onHelpClick: () => void;
 }
 
 export const TopNavBar: React.FC<TopNavBarProps> = ({
@@ -32,14 +35,14 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
       }}
     >
       {/* Left Section - Logo & Branding */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg"
           style={{
             background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
           }}
         >
-          ✨
+          V
         </div>
         <div>
           <h1
@@ -58,63 +61,34 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
       </div>
 
       {/* Middle Section - Status Indicators */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4">
         {/* Ollama Status */}
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-2.5 h-2.5 rounded-full ${
-              isOllamaOnline ? 'animate-pulse' : ''
-            }`}
-            style={{
-              backgroundColor: isOllamaOnline
-                ? theme.colors.status.success
-                : theme.colors.status.error,
-            }}
-          />
-          <span
-            className="text-xs font-medium"
-            style={{ color: theme.colors.text.secondary }}
-          >
-            Ollama: <span style={{ color: isOllamaOnline ? theme.colors.status.success : theme.colors.status.error }}>
-              {isOllamaOnline ? 'Online' : 'Offline'}
-            </span>
-          </span>
-        </div>
+        <StatusIndicator
+          status={isOllamaOnline ? 'online' : 'offline'}
+          label={isOllamaOnline ? 'Ollama Online' : 'Ollama Offline'}
+          size="md"
+        />
 
-        {/* Model Display */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: theme.colors.bg.tertiary }}>
-          <span
-            className="text-xs"
-            style={{ color: theme.colors.text.tertiary }}
-          >
-            Model:
-          </span>
-          <span
-            className="text-xs font-semibold"
-            style={{ color: theme.colors.accent.primary }}
-          >
-            {currentModel}
-          </span>
-        </div>
+        {/* Model Badge */}
+        <Badge variant="info" size="md" icon={<Icon name="code" size={14} />}>
+          {currentModel}
+        </Badge>
 
         {/* Time */}
-        <span
-          className="text-xs font-mono"
-          style={{ color: theme.colors.text.tertiary }}
-        >
+        <Badge variant="secondary" size="sm">
           {time}
-        </span>
+        </Badge>
       </div>
 
       {/* Right Section - Actions */}
       <div className="flex items-center gap-2">
         <button
           onClick={onHelpClick}
-          className="p-2 rounded-lg transition-all"
+          className="p-2.5 rounded-lg transition-all"
           style={{
             backgroundColor: 'transparent',
             color: theme.colors.text.secondary,
-            border: `1px solid ${theme.colors.border.light}`,
+            border: `1px solid transparent`,
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
@@ -126,16 +100,16 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           }}
           title="Help & Documentation"
         >
-          <span className="text-lg">❓</span>
+          <Icon name="help" size={18} />
         </button>
 
         <button
           onClick={onSettingsClick}
-          className="p-2 rounded-lg transition-all"
+          className="p-2.5 rounded-lg transition-all"
           style={{
             backgroundColor: 'transparent',
             color: theme.colors.text.secondary,
-            border: `1px solid ${theme.colors.border.light}`,
+            border: `1px solid transparent`,
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
@@ -147,9 +121,11 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           }}
           title="Settings"
         >
-          <span className="text-lg">⚙️</span>
+          <Icon name="settings" size={18} />
         </button>
       </div>
     </nav>
   );
 };
+
+export default TopNavBar;
