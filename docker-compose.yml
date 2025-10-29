@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # Backend Express server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-diagram-builder-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434/api/generate}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3001
+    depends_on:
+      - frontend
+    networks:
+      - diagram-network
+    restart: unless-stopped
+
+  # Frontend Vite + React app
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai-diagram-builder-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=${FRONTEND_API_URL:-http://localhost:3001}
+    networks:
+      - diagram-network
+    restart: unless-stopped
+
+  # Optional: PlantUML Server (start if ENABLE_PLANTUML=true)
+  plantuml:
+    image: plantuml/plantuml-server:jetty
+    container_name: ai-diagram-builder-plantuml
+    ports:
+      - "8080:8080"
+    networks:
+      - diagram-network
+    restart: unless-stopped
+    profiles:
+      - plantuml
+
+networks:
+  diagram-network:
+    driver: bridge

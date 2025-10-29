@@ -1,0 +1,25 @@
+# PlantUML Diagram Examples
+
+## Sequence Diagram Example
+Create a PlantUML sequence diagram for an online payment processing flow between Customer, Payment Gateway, and Bank.
+
+## Component Diagram Example
+Design a PlantUML component diagram showing web application architecture: Frontend → API → Services → Database
+
+## Deployment Diagram Example
+Draw a deployment diagram showing physical deployment: Web Servers, App Servers, Load Balancer, Database Server.
+
+## Class Diagram Example
+Create a class diagram for a library system with classes: Book, User, Librarian, Library showing associations.
+
+## Use Case Diagram Example
+Illustrate use cases for a hotel booking system: Guest, Admin, Hotel Manager with actions: search, book, manage.
+
+## Timing Diagram Example
+Design a timing diagram showing signal changes over time for a digital circuit or communication protocol.
+
+## Object Diagram Example
+Create an object diagram showing instances of classes with specific attribute values.
+
+## State Machine Example
+Draw a state diagram for a traffic light system: Red, Yellow, Green with transitions.

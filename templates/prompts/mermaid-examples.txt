@@ -1,0 +1,25 @@
+# Mermaid Diagram Examples
+
+## Flowchart Example
+Create a Mermaid flowchart for a user authentication flow with error handling and retry logic.
+
+## Sequence Diagram Example
+Draw a Mermaid sequence diagram showing the interaction between a mobile app, API gateway, and database for a login request.
+
+## Class Diagram Example
+Design a Mermaid class diagram for an e-commerce system with User, Product, Order, and Payment classes showing relationships.
+
+## State Machine Example
+Create a Mermaid state machine showing the lifecycle of an order: pending, processing, shipped, delivered, cancelled.
+
+## Git Flow Example
+Illustrate a Mermaid graph showing git branches: main, develop, feature/auth, release/v1.0, hotfix/bug-123
+
+## Org Chart Example
+Generate a Mermaid flowchart as an organizational hierarchy with CEO, departments, managers, and employees.
+
+## System Architecture Example
+Create a Mermaid diagram showing microservices: API Gateway → Auth Service → User Service → Database
+
+## Timeline Example
+Create a timeline of a project showing: Planning, Design, Development, Testing, Deployment phases

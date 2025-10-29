@@ -1,0 +1,65 @@
+Table users {
+  id integer [primary key]
+  username varchar [unique, not null]
+  email varchar [unique, not null]
+  password_hash varchar [not null]
+  full_name varchar
+  avatar_url varchar
+  bio text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  is_active boolean [default: true]
+}
+
+Table companies {
+  id integer [primary key]
+  name varchar [not null]
+  industry varchar
+  headquarters_city varchar
+  founded_year integer
+  website varchar
+  created_at timestamp [default: `now()`]
+}
+
+Table departments {
+  id integer [primary key]
+  company_id integer [ref: > companies.id]
+  name varchar [not null]
+  description text
+  budget decimal
+}
+
+Table employees {
+  id integer [primary key]
+  user_id integer [ref: > users.id]
+  company_id integer [ref: > companies.id]
+  department_id integer [ref: > departments.id]
+  position varchar [not null]
+  hire_date date
+  salary decimal
+  manager_id integer [ref: > employees.id]
+}
+
+Table teams {
+  id integer [primary key]
+  company_id integer [ref: > companies.id]
+  name varchar [not null]
+  description text
+  lead_id integer [ref: > employees.id]
+}
+
+Table team_members {
+  id integer [primary key]
+  team_id integer [ref: > teams.id]
+  employee_id integer [ref: > employees.id]
+  role varchar
+  joined_at timestamp [default: `now()`]
+}
+
+Indexes {
+  users.username
+  users.email
+  employees.company_id
+  employees.department_id
+  team_members.team_id
+}

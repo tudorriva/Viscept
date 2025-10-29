@@ -1,0 +1,25 @@
+# DBML (Database Markup Language) Examples
+
+## E-Commerce Database
+Design a DBML schema for an e-commerce platform with tables for users, products, orders, order items, and reviews.
+
+## Social Media Database
+Create a DBML ERD for a social media app with users, posts, comments, likes, and follower relationships.
+
+## Blog Platform Database
+Design a DBML schema for a blogging platform with authors, posts, categories, tags, and comments.
+
+## Project Management Database
+Create a DBML ERD for a project management tool with projects, tasks, users, teams, and time tracking.
+
+## Healthcare Database
+Design a DBML schema for a healthcare system with patients, doctors, appointments, prescriptions, and medical records.
+
+## University Management Database
+Create a DBML ERD for a university with students, courses, instructors, departments, and grades.
+
+## Inventory Management Database
+Design a DBML schema for inventory tracking with warehouses, products, inventory levels, and suppliers.
+
+## Real Estate Database
+Create a DBML ERD for a real estate platform with properties, agents, buyers, sellers, and transactions.

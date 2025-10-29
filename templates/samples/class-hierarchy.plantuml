@@ -1,0 +1,68 @@
+@startuml
+!define ABSTRACT abstract
+
+abstract class Entity {
+  id: long
+  created_at: timestamp
+  updated_at: timestamp
+}
+
+abstract class User {
+  username: string
+  email: string
+  password_hash: string
+}
+
+class Admin extends User {
+  permissions: List<string>
+  +manageUsers()
+  +viewLogs()
+  +editSettings()
+}
+
+class Employee extends User {
+  position: string
+  salary: decimal
+  hire_date: date
+  +viewPayslip()
+  +submitTimesheet()
+}
+
+class Customer extends User {
+  phone: string
+  address: string
+  +browseProducts()
+  +placeOrder()
+}
+
+class Product {
+  name: string
+  sku: string
+  price: decimal
+  inventory_level: int
+  +updatePrice()
+  +updateInventory()
+}
+
+class Order {
+  order_number: string
+  total_amount: decimal
+  status: string
+  created_at: timestamp
+  +getItems()
+  +cancel()
+}
+
+Customer --> Order : places
+Order --> Product : contains
+Admin "1" -- "*" Employee : manages
+
+note right of User
+  Base user class with authentication
+end note
+
+note right of Order
+  Represents customer purchases
+end note
+
+@enduml

@@ -1,0 +1,18 @@
+graph TD
+    A["👤 User"] --> B{"📝 Enter Credentials"}
+    B --> C{"✔️ Credentials Valid?"}
+    C -->|No| D["❌ Show Error"]
+    D --> B
+    C -->|Yes| E["🔍 Fetch User Data"]
+    E --> F["⏳ Load Dashboard"]
+    F --> G["👋 Show Welcome"]
+    G --> H{"🎯 User Action"}
+    H -->|Profile| I["👤 View Profile"]
+    H -->|Settings| J["⚙️ Settings"]
+    H -->|Messages| K["💬 View Messages"]
+    H -->|Logout| L["🚪 End Session"]
+    I --> M["🔙 Back to Dashboard"]
+    J --> M
+    K --> M
+    M --> H
+    L --> N["🏁 Session Ended"]

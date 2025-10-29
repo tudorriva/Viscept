@@ -1,0 +1,25 @@
+# Graphviz (DOT) Diagram Examples
+
+## System Architecture
+Create a Graphviz diagram showing microservices architecture with API Gateway, services, and databases connected.
+
+## Dependency Graph
+Design a graph showing module dependencies: frontend depends on api-client, api-client depends on utils, etc.
+
+## State Machine
+Create a Graphviz digraph showing states and transitions: START → PROCESSING → COMPLETE or ERROR.
+
+## Network Topology
+Draw a network diagram showing routers, switches, computers, and connections in a tree structure.
+
+## Workflow Process
+Design a workflow with decision nodes: Start → Check condition → Path A or Path B → End.
+
+## Call Graph
+Create a call graph showing function calls: main() → processData() → validate() and processData() → save().
+
+## Organizational Hierarchy
+Design an org chart with nodes for CEO, departments, and employees connected by reporting lines.
+
+## Knowledge Graph
+Create a knowledge graph showing concepts and their relationships in a domain (e.g., physics concepts).

@@ -1,0 +1,40 @@
+digraph microservices_architecture {
+  rankdir=LR;
+  bgcolor=transparent;
+  
+  node [shape=box, style="filled,rounded", fillcolor=lightblue, fontname=Arial];
+  
+  Client [label="👤 Client", fillcolor=lightyellow];
+  Gateway [label="🚪 API Gateway", fillcolor=lightgreen];
+  
+  node [fillcolor=lightcyan];
+  Auth [label="🔐 Auth Service"];
+  User [label="👥 User Service"];
+  Product [label="📦 Product Service"];
+  Order [label="📋 Order Service"];
+  Payment [label="💳 Payment Service"];
+  
+  node [shape=cylinder, fillcolor=lightpink];
+  UserDB [label="📊 User DB"];
+  ProductDB [label="📊 Product DB"];
+  OrderDB [label="📊 Order DB"];
+  Cache [label="⚡ Cache\n(Redis)"];
+  
+  Client -> Gateway [label="HTTPS"];
+  
+  Gateway -> Auth [label="authenticate"];
+  Gateway -> User [label="get_user"];
+  Gateway -> Product [label="list_products"];
+  Gateway -> Order [label="create_order"];
+  
+  User -> UserDB [label="query"];
+  Product -> ProductDB [label="query"];
+  Order -> OrderDB [label="write"];
+  Order -> Payment [label="process"];
+  
+  Auth -> Cache [label="session"];
+  Product -> Cache [label="cache"];
+  
+  {rank=same; Auth; User; Product; Order; Payment;}
+  {rank=same; UserDB; ProductDB; OrderDB; Cache;}
+}
