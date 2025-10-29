@@ -1,6 +1,7 @@
 <div align="center">
+<img width="612" height="200" alt="rsz_chatgpt_image_oct_29_2025_06_20_28_pm-removebg-preview" src="https://github.com/user-attachments/assets/1e4b824e-2fb5-4c5e-b9af-46e805e4bc4d" />
 
-<h1>Viscept — AI Diagram Builder</h1>
+<h1>Viscept: AI Diagram Builder</h1>
 <p>Generate professional diagrams from natural language. Rendering happens in the browser; AI generation runs locally via Ollama.</p>
 
 <!-- Badges -->
