@@ -1,4 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
+import Editor from '@monaco-editor/react';
+import { theme } from '../theme';
 
 interface CodeEditorProps {
   code: string;
@@ -13,54 +15,119 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange,
   onFormat,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<any>(null);
+
+  const handleEditorMount = (editor: any) => {
+    editorRef.current = editor;
+  };
+
+  const getLanguageMode = (lang: string): string => {
+    switch (lang) {
+      case 'mermaid':
+        return 'markdown';
+      case 'dbml':
+        return 'text';
+      case 'graphviz':
+        return 'text';
+      default:
+        return 'text';
+    }
+  };
+
+  const getEditorLanguage = (): string => {
+    const langMap: Record<string, string> = {
+      mermaid: 'markdown',
+      dbml: 'text',
+      graphviz: 'text',
+    };
+    return langMap[language] || 'text';
+  };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-slate-800 to-slate-900 overflow-hidden">
+    <div
+      className="flex flex-col h-full"
+      style={{ backgroundColor: theme.colors.bg.secondary }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/50 bg-slate-800/50 backdrop-blur">
+      <div
+        className="flex items-center justify-between px-6 py-4 border-b"
+        style={{ borderColor: theme.colors.border.medium }}
+      >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500/20 to-purple-600/20 flex items-center justify-center">
+          <div
+            className="w-8 h-8 rounded flex items-center justify-center"
+            style={{ backgroundColor: `${theme.colors.accent.primary}20` }}
+          >
             <span className="text-sm">📝</span>
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide">
+            <h2
+              className="text-sm font-bold uppercase tracking-wide"
+              style={{ color: theme.colors.text.primary }}
+            >
               {language.toUpperCase()} Code
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">{code.split('\n').length} lines</p>
+            <p
+              className="text-xs mt-0.5"
+              style={{ color: theme.colors.text.tertiary }}
+            >
+              {code.split('\n').length} lines • {code.length} chars
+            </p>
           </div>
         </div>
         <button
           onClick={onFormat}
-          className="btn-secondary text-xs px-3 py-2"
+          className="px-3 py-2 rounded-lg text-sm font-medium transition-all"
+          style={{
+            backgroundColor: theme.colors.bg.tertiary,
+            color: theme.colors.accent.primary,
+            border: `1px solid ${theme.colors.border.medium}`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = `${theme.colors.accent.primary}20`;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
+          }}
         >
           ✨ Format
         </button>
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* Line Numbers */}
-        <div className="bg-slate-900/50 border-r border-slate-700/30 px-3 py-4 text-right text-slate-600 font-mono text-xs select-none overflow-y-auto">
-          {code.split('\n').map((_, i) => (
-            <div key={i} className="h-6 leading-6">
-              {i + 1}
-            </div>
-          ))}
-        </div>
-
-        {/* Code Input */}
-        <textarea
+      <div className="flex-1 overflow-hidden">
+        <Editor
+          height="100%"
+          language={getEditorLanguage()}
           value={code}
-          onChange={(e) => onChange(e.target.value)}
-          className="flex-1 p-4 bg-slate-800 font-mono text-sm text-slate-100 placeholder-slate-600 resize-none border-none focus:outline-none"
-          spellCheck={false}
-          placeholder={`// Enter or paste ${language.toUpperCase()} code here...`}
+          onChange={(value) => onChange(value || '')}
+          onMount={handleEditorMount}
+          theme="vs-dark"
+          options={{
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            fontSize: 13,
+            fontFamily: "'JetBrains Mono', monospace",
+            lineHeight: 24,
+            padding: { top: 16, bottom: 16 },
+            renderWhitespace: 'selection',
+            wordWrap: 'on',
+            bracketPairColorization: {
+              enabled: true,
+            },
+          }}
         />
       </div>
 
       {/* Footer Stats */}
-      <div className="px-6 py-2 bg-slate-900/50 border-t border-slate-700/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+      <div
+        className="px-6 py-3 border-t flex justify-between items-center text-xs font-mono"
+        style={{
+          borderColor: theme.colors.border.medium,
+          backgroundColor: theme.colors.bg.tertiary,
+          color: theme.colors.text.tertiary,
+        }}
+      >
         <span>Lines: {code.split('\n').length}</span>
         <span>Chars: {code.length}</span>
         <span>Words: {code.split(/\s+/).filter(w => w.length > 0).length}</span>

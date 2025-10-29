@@ -1,23 +1,65 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { TopNavBar } from './components/TopNavBar';
+import { ProjectSidebar } from './components/ProjectSidebar';
 import { ChatPanel } from './components/ChatPanel';
 import { CodeEditor } from './components/CodeEditor';
 import { DiagramPreview } from './components/DiagramPreview';
-import { HistoryPanel } from './components/HistoryPanel';
 import { ControlPanel } from './components/ControlPanel';
+import { useProjects } from './hooks/useProjects';
 import { generateDiagram, formatCode as formatCodeAPI, fetchDemo } from './utils/api';
-import { addToHistory, ProjectData } from './utils/storage';
+import { theme } from './theme';
 import './index.css';
 
 type DiagramType = 'mermaid' | 'dbml' | 'graphviz';
 
 export const App: React.FC = () => {
-  const [prompt, setPrompt] = useState('');
-  const [code, setCode] = useState('');
-  const [diagramType, setDiagramType] = useState<DiagramType>('mermaid');
+  const previewRef = useRef<HTMLDivElement>(null);
+  const {
+    projects,
+    currentProject,
+    favorites,
+    recent,
+    createProject,
+    updateProject,
+    deleteProject,
+    openProject,
+    toggleFavorite,
+    duplicateProject,
+  } = useProjects();
+
+  // State
+  const [prompt, setPrompt] = useState(currentProject?.prompt || '');
+  const [code, setCode] = useState(currentProject?.code || '');
+  const [diagramType, setDiagramType] = useState<DiagramType>(currentProject?.diagramType || 'mermaid');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOllamaOnline, setIsOllamaOnline] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
-  const previewRef = useRef<HTMLDivElement>(null);
+  // Sync current project
+  useEffect(() => {
+    if (currentProject) {
+      setPrompt(currentProject.prompt);
+      setCode(currentProject.code);
+      setDiagramType(currentProject.diagramType);
+    }
+  }, [currentProject]);
+
+  // Check Ollama status
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:11434/api/tags');
+        setIsOllamaOnline(response.ok);
+      } catch {
+        setIsOllamaOnline(false);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -36,7 +78,6 @@ export const App: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
-    setCode('');
 
     try {
       const response = await generateDiagram({
@@ -45,15 +86,21 @@ export const App: React.FC = () => {
       });
 
       setCode(response.code);
-      addToHistory(response.code, diagramType);
+
+      if (currentProject) {
+        updateProject(currentProject.id, {
+          code: response.code,
+          prompt,
+          diagramType,
+        });
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate diagram';
       setError(errorMessage);
-      console.error('Generation error:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [prompt, diagramType]);
+  }, [prompt, diagramType, currentProject, updateProject]);
 
   const handleFormatCode = useCallback(async () => {
     if (!code.trim()) return;
@@ -65,88 +112,128 @@ export const App: React.FC = () => {
       });
 
       setCode(response.formatted);
+      if (currentProject) {
+        updateProject(currentProject.id, { code: response.formatted });
+      }
     } catch (err) {
       console.error('Format error:', err);
       setError('Failed to format code');
     }
-  }, [code, diagramType]);
+  }, [code, diagramType, currentProject, updateProject]);
 
   const handleLoadDemo = useCallback(async () => {
     try {
       const demo = await fetchDemo();
       setCode(demo[diagramType]);
       setPrompt(`Demo: ${diagramType.toUpperCase()}`);
-      addToHistory(demo[diagramType], diagramType);
     } catch (err) {
-      console.error('Failed to load demo:', err);
-      setError('Failed to load demo data');
+      setError('Failed to load demo');
     }
   }, [diagramType]);
 
-  const handleSelectVersion = useCallback((selectedCode: string) => {
-    setCode(selectedCode);
-  }, []);
-
-  const handleLoadProject = useCallback((project: ProjectData) => {
-    setPrompt(project.prompt);
-    setCode(project.code);
-    setDiagramType(project.diagramType);
-  }, []);
+  const handleCreateProject = useCallback(
+    (name: string, type: DiagramType) => {
+      const project = createProject(name, type, '', '');
+      openProject(project.id);
+    },
+    [createProject, openProject]
+  );
 
   return (
-    <div className="flex h-screen w-screen bg-slate-900 overflow-hidden">
-      {/* Left Panel: Chat */}
-      <div className="w-96 flex flex-col border-r border-slate-700/50 animate-slide-in-left">
-        <ChatPanel
-          prompt={prompt}
-          onPromptChange={setPrompt}
-          diagramType={diagramType}
-          onDiagramTypeChange={setDiagramType}
-          isLoading={isLoading}
-          onGenerate={handleGenerate}
-          onLoadDemo={handleLoadDemo}
+    <div
+      className="flex flex-col h-screen w-screen"
+      style={{ backgroundColor: theme.colors.bg.primary }}
+    >
+      {/* Top Navigation */}
+      <TopNavBar
+        isOllamaOnline={isOllamaOnline}
+        currentModel="Mistral 7B"
+        onSettingsClick={() => setShowSettings(!showSettings)}
+      />
+
+      {/* Main Content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Project Sidebar */}
+        <ProjectSidebar
+          projects={projects}
+          favorites={favorites}
+          recent={recent}
+          currentProject={currentProject || null}
+          onSelectProject={(p) => openProject(p.id)}
+          onCreateProject={handleCreateProject}
+          onDeleteProject={deleteProject}
+          onToggleFavorite={toggleFavorite}
+          onDuplicate={(id) => {
+            const copy = duplicateProject(id);
+            if (copy) openProject(copy.id);
+          }}
         />
 
-        {/* Control Panel */}
-        <ControlPanel
-          code={code}
-          diagramType={diagramType}
-          prompt={prompt}
-          previewRef={previewRef}
-          onLoadProject={handleLoadProject}
-        />
-      </div>
+        {/* Left Panel: Chat */}
+        <div
+          className="w-96 flex flex-col border-r"
+          style={{ borderColor: theme.colors.border.medium }}
+        >
+          <ChatPanel
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            diagramType={diagramType}
+            onDiagramTypeChange={setDiagramType}
+            isLoading={isLoading}
+            onGenerate={handleGenerate}
+            onLoadDemo={handleLoadDemo}
+          />
 
-      {/* Middle Panel: Code Editor */}
-      <div className="flex-1 flex flex-col animate-fade-in">
-        <CodeEditor
-          code={code}
-          language={diagramType}
-          onChange={setCode}
-          onFormat={handleFormatCode}
-        />
-      </div>
+          {/* Control Panel */}
+          <ControlPanel
+            code={code}
+            diagramType={diagramType}
+            prompt={prompt}
+            previewRef={previewRef}
+            onLoadProject={(p) => {
+              const newProject = createProject(p.name || 'Imported', p.diagramType, p.code, p.prompt);
+              openProject(newProject.id);
+            }}
+          />
+        </div>
 
-      {/* Right Panel: Preview + History */}
-      <div className="flex">
-        {/* Preview */}
-        <div className="flex-1 min-w-96 border-l border-slate-700/50 animate-slide-in-right">
-          <div ref={previewRef} className="h-full bg-slate-800/50 overflow-hidden flex flex-col">
+        {/* Middle Panel: Code Editor */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <CodeEditor
+            code={code}
+            language={diagramType}
+            onChange={setCode}
+            onFormat={handleFormatCode}
+          />
+        </div>
+
+        {/* Right Panel: Preview */}
+        <div
+          className="w-full min-w-96 border-l"
+          style={{ borderColor: theme.colors.border.medium }}
+        >
+          <div ref={previewRef} className="h-full overflow-hidden">
             <DiagramPreview code={code} language={diagramType} />
           </div>
         </div>
-
-        {/* History Sidebar */}
-        <HistoryPanel diagramType={diagramType} onSelectVersion={handleSelectVersion} />
       </div>
 
       {/* Error Toast */}
       {error && (
-        <div className="fixed bottom-6 right-6 max-w-sm animate-slide-in-up">
-          <div className="glass p-4 rounded-lg border-l-4 border-red-500">
-            <p className="text-sm font-semibold text-red-400 mb-1">❌ Error</p>
-            <p className="text-xs text-slate-300">{error}</p>
-          </div>
+        <div
+          className="fixed bottom-6 right-6 max-w-sm p-4 rounded-lg animate-slide-in-up border-l-4"
+          style={{
+            backgroundColor: theme.colors.bg.secondary,
+            borderColor: theme.colors.status.error,
+            borderLeftWidth: '4px',
+          }}
+        >
+          <p className="text-sm font-semibold" style={{ color: theme.colors.status.error }}>
+            ❌ Error
+          </p>
+          <p className="text-xs mt-1" style={{ color: theme.colors.text.secondary }}>
+            {error}
+          </p>
         </div>
       )}
     </div>
