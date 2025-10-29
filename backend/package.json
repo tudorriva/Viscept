@@ -1,5 +1,5 @@
 {
-  "name": "ai-diagram-builder-backend",
+  "name": "viscept-backend",
   "version": "1.0.0",
   "description": "Backend API for AI Diagram Builder - local LLM integration",
   "main": "dist/server.js",

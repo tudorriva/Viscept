@@ -8,7 +8,7 @@ import { generateDiagram, formatCode as formatCodeAPI, fetchDemo } from './utils
 import { addToHistory, ProjectData } from './utils/storage';
 import './index.css';
 
-type DiagramType = 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
+type DiagramType = 'mermaid' | 'dbml' | 'graphviz';
 
 export const App: React.FC = () => {
   const [prompt, setPrompt] = useState('');
@@ -22,19 +22,8 @@ export const App: React.FC = () => {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Enter: Generate
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && prompt.trim()) {
         handleGenerate();
-      }
-      // Ctrl+S: Save Project
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        // Handled in ControlPanel
-      }
-      // Ctrl+Shift+E: Export SVG
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
-        e.preventDefault();
-        // Handled in ControlPanel
       }
     };
 
@@ -47,7 +36,7 @@ export const App: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
-    setCode(''); // Clear code immediately
+    setCode('');
 
     try {
       const response = await generateDiagram({
@@ -55,7 +44,7 @@ export const App: React.FC = () => {
         diagramType,
       });
 
-      setCode(response.code); // Replace, not append
+      setCode(response.code);
       addToHistory(response.code, diagramType);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate diagram';
@@ -78,7 +67,7 @@ export const App: React.FC = () => {
       setCode(response.formatted);
     } catch (err) {
       console.error('Format error:', err);
-      alert('Failed to format code');
+      setError('Failed to format code');
     }
   }, [code, diagramType]);
 
@@ -90,7 +79,7 @@ export const App: React.FC = () => {
       addToHistory(demo[diagramType], diagramType);
     } catch (err) {
       console.error('Failed to load demo:', err);
-      alert('Failed to load demo data');
+      setError('Failed to load demo data');
     }
   }, [diagramType]);
 
@@ -105,9 +94,9 @@ export const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen bg-gray-100 overflow-hidden">
+    <div className="flex h-screen w-screen bg-slate-900 overflow-hidden">
       {/* Left Panel: Chat */}
-      <div className="w-80 flex flex-col">
+      <div className="w-96 flex flex-col border-r border-slate-700/50 animate-slide-in-left">
         <ChatPanel
           prompt={prompt}
           onPromptChange={setPrompt}
@@ -117,13 +106,6 @@ export const App: React.FC = () => {
           onGenerate={handleGenerate}
           onLoadDemo={handleLoadDemo}
         />
-
-        {/* Error Display */}
-        {error && (
-          <div className="p-3 m-3 bg-red-100 border border-red-400 rounded text-red-800 text-xs">
-            <p className="font-semibold">Error: {error}</p>
-          </div>
-        )}
 
         {/* Control Panel */}
         <ControlPanel
@@ -136,7 +118,7 @@ export const App: React.FC = () => {
       </div>
 
       {/* Middle Panel: Code Editor */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col animate-fade-in">
         <CodeEditor
           code={code}
           language={diagramType}
@@ -148,8 +130,8 @@ export const App: React.FC = () => {
       {/* Right Panel: Preview + History */}
       <div className="flex">
         {/* Preview */}
-        <div className="flex-1 min-w-96">
-          <div ref={previewRef} className="h-full">
+        <div className="flex-1 min-w-96 border-l border-slate-700/50 animate-slide-in-right">
+          <div ref={previewRef} className="h-full bg-slate-800/50 overflow-hidden flex flex-col">
             <DiagramPreview code={code} language={diagramType} />
           </div>
         </div>
@@ -157,6 +139,16 @@ export const App: React.FC = () => {
         {/* History Sidebar */}
         <HistoryPanel diagramType={diagramType} onSelectVersion={handleSelectVersion} />
       </div>
+
+      {/* Error Toast */}
+      {error && (
+        <div className="fixed bottom-6 right-6 max-w-sm animate-slide-in-up">
+          <div className="glass p-4 rounded-lg border-l-4 border-red-500">
+            <p className="text-sm font-semibold text-red-400 mb-1">❌ Error</p>
+            <p className="text-xs text-slate-300">{error}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,57 +1,82 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { getHistory } from '../utils/storage';
+
+interface HistoryItem {
+  code: string;
+  timestamp: string;
+  diagramType: string;
+}
 
 interface HistoryPanelProps {
   diagramType: string;
   onSelectVersion: (code: string) => void;
 }
 
-/**
- * Shows version history for the current diagram type.
- */
 export const HistoryPanel: React.FC<HistoryPanelProps> = ({ diagramType, onSelectVersion }) => {
-  const history = getHistory(diagramType);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
-  const formatTime = (timestamp: string): string => {
+  useEffect(() => {
+    const items = getHistory(diagramType as any);
+    setHistory(items);
+  }, [diagramType]);
+
+  const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+
+    if (diff < 60000) return 'now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return date.toLocaleDateString();
   };
 
   return (
-    <div className="w-64 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <h3 className="text-lg font-bold text-gray-900">📚 History</h3>
-        <p className="text-xs text-gray-600 mt-1">Last {history.length} versions</p>
+    <div className="w-80 flex flex-col bg-gradient-to-b from-slate-800 to-slate-900 border-l border-slate-700/50">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-700/50">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-gradient-to-br from-amber-500/20 to-orange-600/20 flex items-center justify-center">
+            <span className="text-sm">⏱️</span>
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide">History</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{history.length} versions</p>
+          </div>
+        </div>
       </div>
 
+      {/* History List */}
       <div className="flex-1 overflow-y-auto">
         {history.length === 0 ? (
-          <div className="p-4 text-center text-gray-500 text-sm">
-            <p>No history yet</p>
-            <p className="text-xs mt-1">Generate diagrams to see versions</p>
+          <div className="p-6 text-center text-slate-500">
+            <p className="text-sm">No history yet</p>
+            <p className="text-xs mt-2">Generate diagrams to see versions here</p>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-200">
-            {history.map((version, index) => (
-              <li key={index} className="p-3 hover:bg-gray-50 cursor-pointer transition">
-                <button
-                  onClick={() => onSelectVersion(version.code)}
-                  className="w-full text-left"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-gray-600">
-                      v{history.length - index}
-                    </span>
-                    <span className="text-xs text-gray-500">{formatTime(version.timestamp)}</span>
+          <div className="divide-y divide-slate-700/50">
+            {history.map((item, index) => (
+              <button
+                key={`${item.timestamp}-${index}`}
+                onClick={() => onSelectVersion(item.code)}
+                className="w-full text-left p-4 hover:bg-slate-700/30 transition-colors group"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-mono text-slate-300 truncate group-hover:text-slate-100">
+                      {item.code.substring(0, 30).replace(/\n/g, ' ')}...
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">{formatTime(item.timestamp)}</p>
                   </div>
-                  <p className="text-xs text-gray-700 line-clamp-2 break-words">
-                    {version.code.substring(0, 60)}
-                    {version.code.length > 60 ? '...' : ''}
-                  </p>
-                </button>
-              </li>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400 bg-slate-800/50 px-2 py-1 rounded">
+                      {item.code.length} chars
+                    </p>
+                  </div>
+                </div>
+              </button>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </div>

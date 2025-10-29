@@ -3,8 +3,8 @@ import React, { useEffect, useRef } from 'react';
 interface ChatPanelProps {
   prompt: string;
   onPromptChange: (prompt: string) => void;
-  diagramType: 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
-  onDiagramTypeChange: (type: 'mermaid' | 'plantuml' | 'dbml' | 'graphviz') => void;
+  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  onDiagramTypeChange: (type: 'mermaid' | 'dbml' | 'graphviz') => void;
   isLoading: boolean;
   onGenerate: () => void;
   onLoadDemo: () => void;
@@ -21,75 +21,101 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Keyboard shortcut: Ctrl+Enter to send
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && prompt.trim()) {
-        onGenerate();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [prompt, onGenerate]);
-
-  // Auto-grow textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 240) + 'px';
     }
   }, [prompt]);
 
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200 p-4 overflow-hidden">
-      <h2 className="text-lg font-bold text-gray-900 mb-3">💬 Prompt</h2>
+    <div className="flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800 p-6 overflow-y-auto">
+      {/* Header */}
+      <div className="mb-8 pb-6 border-b border-slate-700/50">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+            <span className="text-xl">✨</span>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold gradient-text">Viscept</h1>
+            <p className="text-xs text-slate-400 mt-1">AI Diagram Generator</p>
+          </div>
+        </div>
+      </div>
 
       {/* Diagram Type Selector */}
-      <div className="mb-3">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Diagram Type:</label>
+      <div className="mb-6">
+        <label className="block text-xs font-semibold text-slate-300 mb-2.5 uppercase tracking-widest">
+          📊 Diagram Type
+        </label>
         <select
           value={diagramType}
           onChange={(e) => onDiagramTypeChange(e.target.value as typeof diagramType)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-4 py-3 bg-slate-800 border border-slate-600/50 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm font-medium text-slate-100 transition-all hover:border-slate-500"
         >
-          <option value="mermaid">Mermaid (flowchart, sequence, class)</option>
-          <option value="dbml">DBML (Entity-Relationship)</option>
-          <option value="graphviz">Graphviz (DOT)</option>
+          <option value="mermaid">📈 Mermaid (Flowchart, Sequence, Class)</option>
+          <option value="dbml">🗄️ DBML (Entity-Relationship)</option>
+          <option value="graphviz">🔗 Graphviz (Architecture)</option>
         </select>
       </div>
 
       {/* Prompt Input */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 mb-4">
+        <label className="text-xs font-semibold text-slate-300 mb-2.5 uppercase tracking-widest">
+          ✍️ Describe Your Diagram
+        </label>
         <textarea
           ref={textareaRef}
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
           placeholder={`Describe your ${diagramType} diagram in natural language...`}
-          className="flex-1 p-3 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+          className="flex-1 p-4 bg-slate-800 border border-slate-600/50 rounded-lg resize-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm font-mono text-slate-100 placeholder-slate-500 transition-all hover:border-slate-500"
         />
       </div>
 
       {/* Action Buttons */}
-      <div className="mt-3 flex gap-2">
+      <div className="space-y-2.5 mb-4">
         <button
           onClick={onGenerate}
           disabled={!prompt.trim() || isLoading}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-md transition"
+          className="btn-primary w-full text-sm"
         >
-          {isLoading ? '⏳ Generating...' : '✨ Generate'}
+          {isLoading ? (
+            <>
+              <span className="animate-spin">⏳</span>
+              Generating...
+            </>
+          ) : (
+            <>
+              <span>✨</span>
+              Generate Diagram
+            </>
+          )}
         </button>
+
         <button
           onClick={onLoadDemo}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-3 rounded-md transition"
-          title="Load demo diagrams"
+          className="btn-secondary w-full text-sm"
         >
-          📁 Demo
+          <span>📁</span>
+          Load Demo
         </button>
       </div>
 
       {/* Keyboard Hint */}
-      <p className="text-xs text-gray-500 mt-2 text-center">Ctrl+Enter to send</p>
+      <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+        <p className="text-xs text-slate-400 text-center">
+          <kbd className="px-2 py-1 rounded bg-slate-700 text-slate-200 font-mono text-xs mr-1">Ctrl</kbd>
+          <span className="mx-0.5">+</span>
+          <kbd className="px-2 py-1 rounded bg-slate-700 text-slate-200 font-mono text-xs">Enter</kbd>
+          <span className="ml-2">to generate</span>
+        </p>
+      </div>
+
+      {/* Footer Info */}
+      <div className="mt-auto pt-4 border-t border-slate-700/50 text-xs text-slate-500 text-center">
+        <p>v1.0.0 • Open Source</p>
+      </div>
     </div>
   );
 };

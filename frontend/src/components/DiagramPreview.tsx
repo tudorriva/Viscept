@@ -1,25 +1,22 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { dbmlToMermaid, dbmlToGraphviz } from '../utils/converters';
 
 interface DiagramPreviewProps {
   code: string;
   language: string;
 }
 
-/**
- * Renders diagrams based on the language type.
- * Supports: Mermaid, PlantUML (via external server), DBML (converted), Graphviz (converted).
- */
 export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!code.trim() || !containerRef.current) return;
+    if (!code.trim() || !containerRef.current) {
+      setError(null);
+      return;
+    }
 
-    // Clear previous render
     if (containerRef.current) {
       containerRef.current.innerHTML = '';
     }
@@ -31,8 +28,6 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
       try {
         if (language === 'mermaid') {
           await renderMermaid();
-        } else if (language === 'plantuml') {
-          await renderPlantUML();
         } else if (language === 'dbml') {
           await renderDBML();
         } else if (language === 'graphviz') {
@@ -46,169 +41,141 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language }
     };
 
     render();
-  }, [code, language]); // Triggers on EVERY code or language change
+  }, [code, language]);
 
   const renderMermaid = async () => {
     if (!containerRef.current) return;
 
-    mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
 
     try {
       const { svg } = await mermaid.render('mermaid-diagram', code);
-      // Check containerRef again after async operation
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
       }
     } catch (error) {
-      throw new Error(`Mermaid render error: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
-  const renderPlantUML = async () => {
-    if (!containerRef.current) return;
-
-    try {
-      const encoded = encodeURIComponent(code);
-      
-      // Try local server first, then public
-      const servers = [
-        `http://localhost:8080/plantuml/svg/${encoded}`,
-        `https://www.plantuml.com/plantuml/svg/${encoded}`,
-      ];
-
-      let svg: string | null = null;
-      let lastError: Error | null = null;
-
-      for (const url of servers) {
-        try {
-          console.log('[PlantUML] Trying:', url.substring(0, 60));
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-          const response = await fetch(url, {
-            mode: 'cors',
-            headers: { 'Accept': 'image/svg+xml' },
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            svg = await response.text();
-            if (svg && svg.includes('<svg')) {
-              console.log('[PlantUML] Success from:', url.substring(0, 40));
-              break;
-            }
-          }
-        } catch (err) {
-          lastError = err as Error;
-          continue;
-        }
-      }
-
-      if (!svg) {
-        throw lastError || new Error('All PlantUML servers failed');
-      }
-
-      if (containerRef.current) {
-        containerRef.current.innerHTML = svg;
-      }
-    } catch (error) {
-      console.error('[PlantUML] Render failed:', error);
-      throw new Error(
-        `PlantUML render error: Cannot reach PlantUML server (CORS/Network issue). Ensure local server is running: docker run -d -p 8080:8080 plantuml/plantuml-server:jetty`
-      );
+      throw new Error(`Mermaid render failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
   const renderDBML = async () => {
+    // Convert DBML to Mermaid ER diagram for rendering
+    const mermaidCode = convertDBMLToMermaid(code);
     if (!containerRef.current) return;
 
+    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+
     try {
-      // Convert DBML to Mermaid and render
-      const mermaidCode = dbmlToMermaid(code);
-      mermaid.initialize({ startOnLoad: false, theme: 'default' });
-      const { svg } = await mermaid.render('dbml-as-mermaid', mermaidCode);
-      // Check containerRef again after async operation
+      const { svg } = await mermaid.render('dbml-diagram', mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
       }
     } catch (error) {
-      throw new Error(
-        `DBML render error: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`DBML render failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
   const renderGraphviz = async () => {
+    // Convert Graphviz to Mermaid flowchart for rendering
+    const mermaidCode = convertGraphvizToMermaid(code);
     if (!containerRef.current) return;
 
-    try {
-      // Convert Graphviz to Mermaid or fetch via server
-      const mermaidCode = code.startsWith('digraph') || code.startsWith('graph')
-        ? convertGraphvizToMermaid(code)
-        : code;
+    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
 
-      mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    try {
       const { svg } = await mermaid.render('graphviz-diagram', mermaidCode);
-      // Check containerRef again after async operation
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
       }
     } catch (error) {
-      throw new Error(
-        `Graphviz render error: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`Graphviz render failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
-  const convertGraphvizToMermaid = (dotCode: string): string => {
-    // Simple DOT to Mermaid conversion
-    let mermaidCode = 'graph TD\n';
-    const lines = dotCode.split('\n');
+  const convertDBMLToMermaid = (dbml: string): string => {
+    // Simple DBML to Mermaid ER conversion
+    const tables = dbml.match(/Table\s+(\w+)\s*{([^}]*)}/gi) || [];
+    const relationships = dbml.match(/Ref:\s*(\w+)\.(\w+)\s*(<|>)\s*(\w+)\.(\w+)/gi) || [];
 
-    for (const line of lines) {
-      const edgeMatch = line.match(/(\w+)\s*-[->]\s*(\w+)/);
-      if (edgeMatch) {
-        const [, from, to] = edgeMatch;
-        mermaidCode += `  ${from} --> ${to}\n`;
+    let mermaidCode = 'erDiagram\n';
+
+    tables.forEach((table) => {
+      const match = table.match(/Table\s+(\w+)/i);
+      if (match) {
+        mermaidCode += `  ${match[1]} ||--o{ "Entity" : "contains"\n`;
       }
-    }
+    });
 
-    return mermaidCode || 'graph TD\n  A --> B';
+    return mermaidCode.trim() || 'erDiagram\n  TABLE1 ||--o{ TABLE2 : "relationship"';
+  };
+
+  const convertGraphvizToMermaid = (dot: string): string => {
+    // Simple Graphviz to Mermaid conversion
+    const nodes = dot.match(/\w+\s*\[label="([^"]+)"/gi) || [];
+    const edges = dot.match(/(\w+)\s*->\s*(\w+)/gi) || [];
+
+    let mermaidCode = 'flowchart LR\n';
+
+    nodes.forEach((node) => {
+      const match = node.match(/(\w+)\s*\[label="([^"]+)"/);
+      if (match) {
+        mermaidCode += `  ${match[1]}["${match[2]}"]\n`;
+      }
+    });
+
+    edges.forEach((edge) => {
+      const match = edge.match(/(\w+)\s*->\s*(\w+)/);
+      if (match) {
+        mermaidCode += `  ${match[1]} --> ${match[2]}\n`;
+      }
+    });
+
+    return mermaidCode.trim() || 'flowchart LR\n  A["Start"] --> B["End"]';
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 border-l border-gray-200 overflow-hidden">
-      <div className="px-4 py-2 border-b border-gray-200 bg-white">
-        <h2 className="text-lg font-bold text-gray-900">👁️ Preview</h2>
-      </div>
-
-      {loading && (
-        <div className="flex items-center justify-center flex-1">
-          <p className="text-gray-500">⏳ Rendering...</p>
-        </div>
-      )}
-
-      {error && (
-        <div className="p-4 m-4 bg-red-100 border border-red-400 rounded text-red-800 text-sm">
-          <p className="font-semibold">❌ Render Error:</p>
-          <p>{error}</p>
-        </div>
-      )}
-
-      {!loading && !error && (
-        <div
-          ref={containerRef}
-          className="flex-1 overflow-auto p-4 bg-white flex items-center justify-center"
-        >
-          <div className="text-gray-400 text-center">
-            <p>📊 Diagram will appear here</p>
-            <p className="text-xs mt-1">Generate or paste code to render</p>
+    <div className="flex flex-col h-full bg-gradient-to-b from-slate-800/50 to-slate-900/50">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-gradient-to-br from-green-500/20 to-cyan-600/20 flex items-center justify-center">
+            <span className="text-sm">👁️</span>
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide">Preview</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Live Rendering</p>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto flex flex-col items-center justify-center p-6">
+        {loading && (
+          <div className="flex flex-col items-center gap-3 text-slate-400">
+            <div className="animate-spin text-3xl">⏳</div>
+            <p className="text-sm font-medium">Rendering diagram...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-6 rounded-lg bg-red-900/20 border border-red-500/30 max-w-md">
+            <p className="text-sm font-semibold text-red-400 mb-2">❌ Render Error</p>
+            <p className="text-xs text-red-300 font-mono">{error}</p>
+          </div>
+        )}
+
+        {!code.trim() && !loading && !error && (
+          <div className="text-center">
+            <div className="text-5xl mb-4 opacity-50">📊</div>
+            <p className="text-slate-400 text-sm">Generate or paste code to render</p>
+          </div>
+        )}
+
+        <div
+          ref={containerRef}
+          className="w-full h-full flex items-center justify-center"
+        />
+      </div>
     </div>
   );
 };

@@ -1,20 +1,15 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { exportAsPNG, exportAsSVG, exportAsPDF, downloadJSON, loadJSONFile } from '../utils/exporters';
-import { saveProject, generateId, ProjectData } from '../utils/storage';
-
-type DiagramType = 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
+import { saveProject, ProjectData } from '../utils/storage';
 
 interface ControlPanelProps {
   code: string;
-  diagramType: DiagramType;
+  diagramType: 'mermaid' | 'dbml' | 'graphviz';
   prompt: string;
   previewRef: React.RefObject<HTMLDivElement>;
   onLoadProject: (project: ProjectData) => void;
 }
 
-/**
- * Control panel with export, save, and load buttons.
- */
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   code,
   diagramType,
@@ -23,15 +18,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onLoadProject,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isExporting, setIsExporting] = React.useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleExportPNG = async () => {
-    if (!previewRef.current) return;
+    if (!previewRef.current || !code.trim()) return;
+    setIsExporting(true);
     try {
-      setIsExporting(true);
-      await exportAsPNG(previewRef.current, `diagram-${Date.now()}`);
-    } catch (error) {
-      console.error('Export PNG failed:', error);
+      await exportAsPNG(previewRef.current, `viscept-${Date.now()}.png`);
+    } catch (err) {
+      console.error('Export failed:', err);
       alert('Failed to export PNG');
     } finally {
       setIsExporting(false);
@@ -39,12 +34,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   const handleExportSVG = async () => {
-    if (!previewRef.current) return;
+    if (!previewRef.current || !code.trim()) return;
+    setIsExporting(true);
     try {
-      setIsExporting(true);
-      await exportAsSVG(previewRef.current, `diagram-${Date.now()}`);
-    } catch (error) {
-      console.error('Export SVG failed:', error);
+      await exportAsSVG(previewRef.current, `viscept-${Date.now()}.svg`);
+    } catch (err) {
+      console.error('Export failed:', err);
       alert('Failed to export SVG');
     } finally {
       setIsExporting(false);
@@ -52,12 +47,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   const handleExportPDF = async () => {
-    if (!previewRef.current) return;
+    if (!previewRef.current || !code.trim()) return;
+    setIsExporting(true);
     try {
-      setIsExporting(true);
-      await exportAsPDF(previewRef.current, `diagram-${Date.now()}`);
-    } catch (error) {
-      console.error('Export PDF failed:', error);
+      await exportAsPDF(previewRef.current, `viscept-${Date.now()}.pdf`);
+    } catch (err) {
+      console.error('Export failed:', err);
       alert('Failed to export PDF');
     } finally {
       setIsExporting(false);
@@ -66,22 +61,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   const handleSaveProject = () => {
     const project: ProjectData = {
-      id: generateId(),
-      name: `${diagramType} - ${new Date().toLocaleString()}`,
-      diagramType: diagramType as DiagramType,
-      code,
       prompt,
-      versions: [{ code, timestamp: new Date().toISOString() }],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      code,
+      diagramType,
+      timestamp: new Date().toISOString(),
     };
-
-    saveProject(project);
-    downloadJSON(project, project.name);
-    alert('Project saved!');
+    downloadJSON(project, `viscept-project-${Date.now()}`);
   };
 
-  const handleLoadProject = () => {
+  const handleLoadProject = async () => {
     fileInputRef.current?.click();
   };
 
@@ -91,70 +79,75 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     try {
       const data = await loadJSONFile(file);
-      if (data && typeof data === 'object' && 'id' in data) {
-        onLoadProject(data as ProjectData);
-        alert('Project loaded!');
+      const project = data as ProjectData;
+      if (project.code && project.diagramType) {
+        onLoadProject(project);
       } else {
         alert('Invalid project file');
       }
-    } catch (error) {
-      console.error('Failed to load project:', error);
+    } catch (err) {
       alert('Failed to load project file');
     }
   };
 
-  const exportMenuItems = [
-    { label: '🖼️ PNG', onClick: handleExportPNG },
-    { label: '📄 SVG', onClick: handleExportSVG },
-    { label: '📕 PDF', onClick: handleExportPDF },
-  ];
-
   return (
-    <div className="flex flex-col gap-2 p-3 bg-white border-t border-gray-200">
-      <div className="text-sm font-semibold text-gray-700 mb-1">💾 Actions</div>
-
+    <div className="flex flex-col gap-3 p-5 bg-slate-800/50 border-t border-slate-700/50">
       {/* Export Buttons */}
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-1">
-          {exportMenuItems.map((item) => (
-            <button
-              key={item.label}
-              onClick={item.onClick}
-              disabled={isExporting || !code.trim()}
-              className="flex-1 text-xs bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white font-medium py-2 px-2 rounded transition"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-1">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">💾 Export</p>
+        <div className="grid grid-cols-3 gap-2">
           <button
-            onClick={handleSaveProject}
-            disabled={!code.trim()}
-            className="flex-1 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-2 rounded transition"
+            onClick={handleExportPNG}
+            disabled={isExporting || !code.trim()}
+            className="btn-secondary text-xs py-2"
+            title="Export as PNG image"
           >
-            💾 Save Project
+            🖼️
           </button>
           <button
-            onClick={handleLoadProject}
-            className="flex-1 text-xs bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-2 rounded transition"
+            onClick={handleExportSVG}
+            disabled={isExporting || !code.trim()}
+            className="btn-secondary text-xs py-2"
+            title="Export as SVG vector"
           >
-            📂 Load Project
+            📄
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={isExporting || !code.trim()}
+            className="btn-secondary text-xs py-2"
+            title="Export as PDF document"
+          >
+            📕
           </button>
         </div>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        onChange={handleFileSelected}
-        style={{ display: 'none' }}
-      />
-
-      <div className="text-xs text-gray-500 text-center mt-2">
-        Ctrl+S to save | Ctrl+Shift+E to export SVG
+      {/* Project Buttons */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">📦 Project</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={handleSaveProject}
+            disabled={!code.trim()}
+            className="btn-secondary text-xs py-2 text-center"
+          >
+            💾 Save
+          </button>
+          <button
+            onClick={handleLoadProject}
+            className="btn-secondary text-xs py-2 text-center"
+          >
+            📂 Load
+          </button>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileSelected}
+          className="hidden"
+        />
       </div>
     </div>
   );
