@@ -9,9 +9,10 @@ import { SettingsModal } from './components/SettingsModal';
 import { OnboardingTour } from './components/OnboardingTour';
 import { ExamplesGallery } from './components/ExamplesGallery';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { ValidationPanel } from './components/ValidationPanel';
 import { useProjects } from './hooks/useProjects';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { generateDiagram, formatCode as formatCodeAPI, fetchDemo } from './utils/api';
+import { generateDiagram, formatCode as formatCodeAPI, fetchDemo, validateDiagram, ValidationResult } from './utils/api';
 import { DIAGRAM_EXAMPLES, DiagramExample } from './utils/examples';
 import { theme } from './theme';
 import './index.css';
@@ -44,6 +45,10 @@ export const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showOnboarding, setShowOnboarding] = useLocalStorage('viscept_show_onboarding', projects.length === 0);
   const [showExamples, setShowExamples] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [generationAttempts, setGenerationAttempts] = useState(0);
+  const [autoValidation] = useLocalStorage('viscept_auto_validation', false);
 
   // Sync current project
   useEffect(() => {
@@ -95,14 +100,25 @@ export const App: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
+    setValidationResult(null);
 
     try {
       const response = await generateDiagram({
         prompt,
         diagramType,
+        enableValidation: autoValidation,
+        maxRetries: 2,
       });
 
       setCode(response.code);
+
+      // Store validation results if the pipeline returned them
+      if (response.validation) {
+        setValidationResult(response.validation);
+      }
+      if (response.attempts) {
+        setGenerationAttempts(response.attempts);
+      }
 
       if (currentProject) {
         updateProject(currentProject.id, {
@@ -117,7 +133,31 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [prompt, diagramType, currentProject, updateProject]);
+  }, [prompt, diagramType, currentProject, updateProject, autoValidation]);
+
+  /**
+   * Manually validate the current diagram using the Visual Judge.
+   */
+  const handleValidate = useCallback(async () => {
+    if (!code.trim()) return;
+
+    setIsValidating(true);
+    setValidationResult(null);
+
+    try {
+      const result = await validateDiagram({
+        code,
+        diagramType,
+        originalPrompt: prompt || 'User diagram',
+      });
+
+      setValidationResult(result);
+    } catch (err) {
+      setError('Visual validation failed');
+    } finally {
+      setIsValidating(false);
+    }
+  }, [code, diagramType, prompt]);
 
   const handleFormatCode = useCallback(async () => {
     if (!code.trim()) return;
@@ -180,7 +220,7 @@ export const App: React.FC = () => {
       {/* Top Navigation */}
       <TopNavBar
         isOllamaOnline={isOllamaOnline}
-        currentModel="Mistral 7B"
+        currentModel="Qwen2.5-Coder 7B"
         onSettingsClick={() => setShowSettings(true)}
         onHelpClick={() => setShowExamples(true)}
       />
@@ -244,12 +284,21 @@ export const App: React.FC = () => {
 
         {/* Right Panel: Preview */}
         <div
-          className="w-full min-w-96 border-l"
+          className="w-full min-w-96 border-l flex flex-col"
           style={{ borderColor: theme.colors.border.medium }}
         >
-          <div ref={previewRef} className="h-full overflow-hidden">
+          <div ref={previewRef} className="flex-1 overflow-hidden">
             <DiagramPreview code={code} language={diagramType} />
           </div>
+
+          {/* Visual Validation Panel */}
+          <ValidationPanel
+            validation={validationResult}
+            attempts={generationAttempts}
+            isValidating={isValidating}
+            onValidate={handleValidate}
+            hasCode={!!code.trim()}
+          />
         </div>
       </div>
 

@@ -10,9 +10,10 @@ dotenv.config();
 const PORT = process.env.PORT || 3001;
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 AI Diagram Builder Backend running on http://localhost:${PORT}`);
-  console.log(`   Ollama endpoint: ${process.env.OLLAMA_URL || 'http://localhost:11434/api/generate'}`);
-  console.log(`   Model: ${process.env.OLLAMA_MODEL || 'mistral'}`);
+  console.log(`🚀 Viscept Backend running on http://localhost:${PORT}`);
+  console.log(`   Ollama endpoint: ${process.env.OLLAMA_URL || 'http://localhost:11434'}`);
+  console.log(`   Generative Model: ${process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b'}`);
+  console.log(`   Vision Model: ${process.env.OLLAMA_VLM_MODEL || 'qwen2.5-vl:3b'}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 

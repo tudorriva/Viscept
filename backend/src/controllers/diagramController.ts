@@ -3,13 +3,24 @@
  */
 
 import { Request, Response } from 'express';
-import { generateWithOllama } from '../services/ollamaService.js';
+import { generateWithOllama, getModelConfig, listOllamaModels, checkOllamaHealth } from '../services/ollamaService.js';
 import { formatCode as formatCodeService } from '../services/formatterService.js';
 import { getDemoData as getDemoDataService } from '../services/demoService.js';
+import { runPipeline, validateExistingDiagram } from '../services/pipelineService.js';
+import { checkVLMHealth } from '../services/visualValidationService.js';
+import { checkRenderingCapabilities } from '../services/renderingService.js';
 
 interface GenerateRequest {
   prompt: string;
   diagramType: string;
+  enableValidation?: boolean;
+  maxRetries?: number;
+}
+
+interface ValidateRequest {
+  code: string;
+  diagramType: string;
+  originalPrompt: string;
 }
 
 interface FormatRequest {
@@ -19,9 +30,10 @@ interface FormatRequest {
 
 /**
  * POST /api/generate - Generate diagram code from a prompt.
+ * Optionally runs the full self-correction pipeline with visual validation.
  */
 export async function generateDiagram(req: Request, res: Response): Promise<void> {
-  const { prompt, diagramType } = req.body as GenerateRequest;
+  const { prompt, diagramType, enableValidation = false, maxRetries } = req.body as GenerateRequest;
 
   // Validate input
   if (!prompt || typeof prompt !== 'string') {
@@ -43,15 +55,104 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
   }
 
   try {
-    console.log(`[Controller] Generating ${diagramType} for prompt: "${prompt.substring(0, 50)}..."`);
+    console.log(`[Controller] Generating ${diagramType} for prompt: "${prompt.substring(0, 50)}..." (validation: ${enableValidation})`);
 
-    const result = await generateWithOllama(prompt, diagramType);
+    if (enableValidation) {
+      // Full Self-Correction Pipeline: Generate → Render → Inspect → Correct
+      const result = await runPipeline(prompt, diagramType, {
+        enableValidation: true,
+        maxRetries: maxRetries ?? 2,
+      });
 
-    res.json(result);
+      res.json({
+        code: result.code,
+        language: result.language,
+        timestamp: result.timestamp,
+        validation: result.validation,
+        attempts: result.attempts,
+        history: result.history,
+      });
+    } else {
+      // Standard generation (no visual validation)
+      const result = await generateWithOllama(prompt, diagramType);
+      res.json(result);
+    }
   } catch (error) {
     console.error('[Controller] Error in generateDiagram:', error);
     res.status(500).json({
       error: 'Failed to generate diagram',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * POST /api/validate - Validate existing diagram code visually.
+ * Renders the code to an image and sends it to the VLM for inspection.
+ */
+export async function validateDiagram(req: Request, res: Response): Promise<void> {
+  const { code, diagramType, originalPrompt } = req.body as ValidateRequest;
+
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'code is required and must be a string' });
+    return;
+  }
+
+  if (!diagramType || typeof diagramType !== 'string') {
+    res.status(400).json({ error: 'diagramType is required and must be a string' });
+    return;
+  }
+
+  const validTypes = ['mermaid', 'plantuml', 'dbml', 'graphviz'];
+  if (!validTypes.includes(diagramType)) {
+    res.status(400).json({
+      error: `Invalid diagramType. Must be one of: ${validTypes.join(', ')}`,
+    });
+    return;
+  }
+
+  try {
+    console.log(`[Controller] Validating ${diagramType} diagram (${code.length} chars)`);
+
+    const result = await validateExistingDiagram(
+      code,
+      diagramType,
+      originalPrompt || 'User diagram'
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('[Controller] Error in validateDiagram:', error);
+    res.status(500).json({
+      error: 'Failed to validate diagram',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * GET /api/models - List available Ollama models and current configuration.
+ */
+export async function getModels(_req: Request, res: Response): Promise<void> {
+  try {
+    const config = getModelConfig();
+    const models = await listOllamaModels();
+    const vlmHealth = await checkVLMHealth();
+    const ollamaHealthy = await checkOllamaHealth();
+    const renderCaps = await checkRenderingCapabilities();
+
+    res.json({
+      config,
+      availableModels: models,
+      ollamaOnline: ollamaHealthy,
+      vlm: vlmHealth,
+      renderingCapabilities: renderCaps,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Controller] Error in getModels:', error);
+    res.status(500).json({
+      error: 'Failed to retrieve model information',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }

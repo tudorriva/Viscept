@@ -1,17 +1,20 @@
 #!/bin/bash
 
 # Setup instructions for Ollama (local LLM inference)
-# This script provides step-by-step guidance for installing Ollama and running models locally.
+# This script provides step-by-step guidance for installing Ollama and running
+# the recommended models for Viscept (AI Diagram Builder).
 
 cat << 'EOF'
 
 ╔════════════════════════════════════════════════════════════════════════════╗
-║                  AI Diagram Builder - Ollama Setup Guide                   ║
+║                      Viscept - Ollama Setup Guide                          ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-This guide will help you set up Ollama to provide local LLM inference for
-diagram generation. Ollama runs models entirely on your machine—no cloud 
-required!
+This guide sets up Ollama for local AI diagram generation and validation.
+Viscept uses TWO models that run entirely on your machine — no cloud required!
+
+  • Qwen2.5-Coder-7B  → generates diagram code (Mermaid, DBML, DOT, PlantUML)
+  • Qwen2.5-VL-3B     → visual judge that inspects rendered diagrams for errors
 
 STEP 1: Install Ollama
 ────────────────────────────────────────────────────────────────────────────
@@ -26,24 +29,30 @@ Select your operating system:
 After installation, verify:
   $ ollama --version
 
-STEP 2: Download a Model
+STEP 2: Download the Recommended Models
 ────────────────────────────────────────────────────────────────────────────
 
-For diagram generation, we recommend:
+GENERATIVE MODEL (code generation):
 
-  FAST (4GB RAM needed):
-    $ ollama pull neural-chat
+  RECOMMENDED (8GB RAM / ~5.5GB VRAM):
+    $ ollama pull qwen2.5-coder:7b
 
-  BALANCED (8GB RAM needed):
+  FAST ALTERNATIVE (4GB RAM / ~2.5GB VRAM):
+    $ ollama pull qwen2.5-coder:3b
+
+  LEGACY (not recommended — lower diagram accuracy):
     $ ollama pull mistral
 
-  SPECIALIZED FOR CODE (14GB RAM needed):
-    $ ollama pull codellama
+VISUAL VALIDATION MODEL (diagram inspection):
 
-Example: Download mistral
-  $ ollama pull mistral
+  RECOMMENDED (~3GB):
+    $ ollama pull qwen2.5-vl:3b
 
-This downloads the model (can take 5-10 minutes depending on your connection).
+  LIGHTER ALTERNATIVE (~2GB):
+    $ ollama pull moondream
+
+Quick setup (pull both recommended models):
+  $ ollama pull qwen2.5-coder:7b && ollama pull qwen2.5-vl:3b
 
 STEP 3: Start Ollama Server
 ────────────────────────────────────────────────────────────────────────────
@@ -61,16 +70,21 @@ STEP 4: Verify Ollama is Working
 
 In another terminal, test the endpoint:
   $ curl -X POST http://localhost:11434/api/generate \
-    -d '{"model":"mistral","prompt":"Hello","stream":false}'
+    -d '{"model":"qwen2.5-coder:7b","prompt":"Hello","stream":false}'
 
 You should see JSON output with a response.
 
-STEP 5: Configure AI Diagram Builder
+List installed models:
+  $ ollama list
+
+STEP 5: Configure Viscept
 ────────────────────────────────────────────────────────────────────────────
 
-Edit backend/.env:
-  OLLAMA_URL=http://localhost:11434/api/generate
-  OLLAMA_MODEL=mistral
+Edit backend/.env (or copy from backend/.env.example):
+
+  OLLAMA_URL=http://localhost:11434
+  OLLAMA_MODEL=qwen2.5-coder:7b
+  OLLAMA_VLM_MODEL=qwen2.5-vl:3b
 
 Then start the backend:
   $ cd backend && npm install && npm run dev
@@ -86,8 +100,8 @@ STEP 6: Using Docker (Optional)
 If running with Docker Compose:
   1. Ensure Ollama is running locally: ollama serve
   2. Edit docker-compose.yml and set OLLAMA_URL to:
-     - macOS/Windows: http://host.docker.internal:11434/api/generate
-     - Linux: http://172.17.0.1:11434/api/generate
+     - macOS/Windows: http://host.docker.internal:11434
+     - Linux: http://172.17.0.1:11434
   3. Start containers: docker-compose up --build
 
 TROUBLESHOOTING
@@ -97,29 +111,43 @@ Q: Ollama is running but backend can't reach it
 A: Check OLLAMA_URL in backend/.env (port 11434 by default)
 
 Q: Model is slow
-A: Use a smaller model (neural-chat vs codellama)
-   Or reduce prompt complexity
+A: Use qwen2.5-coder:3b for faster generation
+   Or disable auto-validation in Settings → AI Models
 
 Q: Error: Model not found
-A: Run: ollama pull mistral (or your model name)
+A: Run: ollama pull qwen2.5-coder:7b (or your model name)
 
 Q: Backend returns fallback template
 A: Ollama might be offline. Run: ollama serve in another terminal
 
-RECOMMENDED MODELS FOR DIAGRAMS
+Q: VRAM is insufficient for both models
+A: Viscept uses Sequential Loading — it swaps models automatically.
+   Reduce VRAM usage further with: OLLAMA_MODEL=qwen2.5-coder:3b
+
+Q: Visual validation is slow
+A: Disable "Auto Visual Validation" in Settings and use the
+   "Check Diagram" button on demand instead.
+
+RECOMMENDED MODELS FOR VISCEPT
 ────────────────────────────────────────────────────────────────────────────
 
-neural-chat (3.5GB): Fastest, good for simple diagrams
-mistral (4.4GB): Balanced speed/quality, recommended
-codellama (7.7GB): Best for complex code-heavy diagrams
+Generation (Code → Diagram):
+  qwen2.5-coder:7b  (~5.5GB) — Best quality, 88%+ HumanEval ★ Recommended
+  qwen2.5-coder:3b  (~2.5GB) — Fast, 30+ tok/s, good quality
+  mistral            (~4.4GB) — Legacy, lower diagram accuracy
+
+Visual Validation (Image → Judgement):
+  qwen2.5-vl:3b     (~3GB)   — Best OCR + spatial reasoning ★ Recommended
+  moondream          (~2GB)   — Faster, weaker at small text
 
 Set in backend/.env:
-  OLLAMA_MODEL=mistral
+  OLLAMA_MODEL=qwen2.5-coder:7b
+  OLLAMA_VLM_MODEL=qwen2.5-vl:3b
 
 For more info:
   - Ollama: https://ollama.ai
   - Models: https://ollama.ai/library
-  - Documentation: https://github.com/jmorganca/ollama
+  - Qwen2.5-Coder: https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct
 
 ════════════════════════════════════════════════════════════════════════════
 

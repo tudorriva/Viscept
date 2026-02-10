@@ -6,6 +6,8 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import diagramRoutes from './routes/diagramRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
+import { checkOllamaHealth, getModelConfig } from './services/ollamaService.js';
+import { checkVLMHealth } from './services/visualValidationService.js';
 
 const app: Express = express();
 
@@ -20,9 +22,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check endpoint with system capabilities
+app.get('/api/health', async (req, res) => {
+  const ollamaOnline = await checkOllamaHealth();
+  const vlm = await checkVLMHealth();
+  const config = getModelConfig();
+
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    ollama: {
+      online: ollamaOnline,
+      generativeModel: config.generativeModel,
+      visionModel: config.visionModel,
+    },
+    vlm: {
+      available: vlm.available,
+      model: vlm.model,
+    },
+    pipeline: {
+      maxRetries: config.maxValidationRetries,
+    },
+  });
 });
 
 // API Routes

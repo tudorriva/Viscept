@@ -1,5 +1,6 @@
 /**
- * Diagram routes - handle /api/generate, /api/format, /api/demo endpoints.
+ * Diagram routes - handle /api/generate, /api/format, /api/demo,
+ * /api/validate, and /api/models endpoints.
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -7,6 +8,8 @@ import {
   generateDiagram,
   formatCode,
   getDemoData,
+  validateDiagram,
+  getModels,
 } from '../controllers/diagramController.js';
 
 const router = Router();
@@ -62,6 +65,44 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await getDemoData(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/validate
+ * Validate existing diagram code using the Visual Judge (VLM).
+ * Renders the diagram to an image and checks for visual errors.
+ *
+ * Request body:
+ *   {
+ *     code: string,
+ *     diagramType: "mermaid" | "plantuml" | "dbml" | "graphviz",
+ *     originalPrompt?: string
+ *   }
+ */
+router.post(
+  '/validate',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await validateDiagram(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/models
+ * List available models, VLM health, and rendering capabilities.
+ */
+router.get(
+  '/models',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await getModels(req, res);
     } catch (error) {
       next(error);
     }

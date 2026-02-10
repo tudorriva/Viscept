@@ -10,21 +10,24 @@ export interface OllamaResponse {
   timestamp: string;
 }
 
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434/api/generate';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral';
+const OLLAMA_BASE_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
+const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5-vl:3b';
 const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || '300000', 10);
 const STRICT_MODE = process.env.STRICT_MODE === 'true';
 const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_OUTPUT_LENGTH || '10000', 10);
+const MAX_VALIDATION_RETRIES = parseInt(process.env.MAX_VALIDATION_RETRIES || '2', 10);
 
 /**
  * Build system prompt for the LLM based on diagram type.
  */
 function buildSystemPrompt(diagramType: string): string {
   const typeInstructions: Record<string, string> = {
-    mermaid: `You are a code generator. Output ONLY valid Mermaid diagram code. No explanations, no prose, no markdown fences. Start immediately with the diagram keyword (graph, flowchart, classDiagram, sequenceDiagram, stateDiagram, erDiagram). Every line must be valid Mermaid syntax. Output code only.`,
-    plantuml: `You are a code generator. Output ONLY valid PlantUML code. No explanations, no prose, no markdown fences. Start with @startuml and end with @enduml. Every line must be valid PlantUML syntax. Output code only.`,
-    dbml: `You are a code generator. Output ONLY valid DBML code for database schemas. No explanations, no prose, no markdown fences. Start with Table definitions. Every line must be valid DBML syntax. Output code only.`,
-    graphviz: `You are a code generator. Output ONLY valid Graphviz DOT code. No explanations, no prose, no markdown fences. Start with 'digraph' or 'graph'. Every line must be valid DOT syntax. Output code only.`,
+      mermaid: `You are a code generator. Output ONLY valid Mermaid diagram code. No explanations, no prose, no markdown fences. Start immediately with the diagram keyword (graph, flowchart, classDiagram, sequenceDiagram, stateDiagram, erDiagram). Every line must be valid Mermaid syntax. Output code only.`,
+      plantuml: `You are a code generator. Output ONLY valid PlantUML code. No explanations, no prose, no markdown fences. Start with @startuml and end with @enduml. Every line must be valid PlantUML syntax. Output code only.`,
+      dbml: `You are a code generator. Output ONLY valid DBML code for database schemas. No explanations, no prose, no markdown fences. Start with Table definitions. Every line must be valid DBML syntax. Output code only.`,
+      graphviz: `You are a code generator. Output ONLY valid Graphviz DOT code. No explanations, no prose, no markdown fences. Start with 'digraph' or 'graph'. Every line must be valid DOT syntax. Output code only.`,
   };
 
   return (
@@ -273,10 +276,34 @@ Table posts {
  */
 export async function checkOllamaHealth(): Promise<boolean> {
   try {
-    const healthUrl = OLLAMA_URL.replace('/api/generate', '/api/tags');
-    await axios.get(healthUrl, { timeout: 5000 });
+    await axios.get(`${OLLAMA_BASE_URL}/api/tags`, { timeout: 5000 });
     return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * List available Ollama models.
+ */
+export async function listOllamaModels(): Promise<string[]> {
+  try {
+    const response = await axios.get(`${OLLAMA_BASE_URL}/api/tags`, { timeout: 5000 });
+    return (response.data.models || []).map((m: { name: string }) => m.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get the currently configured models.
+ */
+export function getModelConfig() {
+  return {
+    generativeModel: OLLAMA_MODEL,
+    visionModel: OLLAMA_VLM_MODEL,
+    ollamaUrl: OLLAMA_BASE_URL,
+    timeout: OLLAMA_TIMEOUT,
+    maxValidationRetries: MAX_VALIDATION_RETRIES,
+  };
 }

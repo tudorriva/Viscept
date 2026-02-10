@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 
 export interface Settings {
   model: string;
+  visionModel: string;
   temperature: number;
   maxTokens: number;
   fontSize: number;
@@ -14,11 +15,16 @@ export interface Settings {
   notifications: boolean;
   exportQuality: 'low' | 'medium' | 'high';
   defaultDiagramType: 'mermaid' | 'dbml' | 'graphviz';
+  /** Enable automatic visual validation on generation */
+  autoValidation: boolean;
+  /** Maximum self-correction retries when validation is enabled */
+  maxValidationRetries: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  model: 'mistral',
-  temperature: 0.7,
+  model: 'qwen2.5-coder:7b',
+  visionModel: 'qwen2.5-vl:3b',
+  temperature: 0.3,
   maxTokens: 2048,
   fontSize: 13,
   theme: 'dark',
@@ -30,6 +36,8 @@ const DEFAULT_SETTINGS: Settings = {
   notifications: true,
   exportQuality: 'high',
   defaultDiagramType: 'mermaid',
+  autoValidation: false,
+  maxValidationRetries: 2,
 };
 
 const STORAGE_KEY = 'viscept_settings';
