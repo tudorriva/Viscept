@@ -6,6 +6,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import {
   generateDiagram,
+  correctDiagram,
   formatCode,
   getDemoData,
   validateDiagram,
@@ -29,6 +30,29 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await generateDiagram(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/correct
+ * Correct diagram code using a render error — sends the code + error to the AI.
+ *
+ * Request body:
+ *   {
+ *     code: string,
+ *     diagramType: "mermaid" | "plantuml" | "dbml" | "graphviz",
+ *     renderError: string,
+ *     originalPrompt?: string
+ *   }
+ */
+router.post(
+  '/correct',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await correctDiagram(req, res);
     } catch (error) {
       next(error);
     }

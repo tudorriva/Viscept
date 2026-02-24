@@ -110,6 +110,21 @@ export async function generateDiagram(req: GenerateRequest): Promise<GenerateRes
   return response.data;
 }
 
+export interface CorrectRequest {
+  code: string;
+  diagramType: 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
+  renderError: string;
+  originalPrompt?: string;
+}
+
+/**
+ * Send diagram code + render error to the AI for correction.
+ */
+export async function correctDiagram(req: CorrectRequest): Promise<GenerateResponse> {
+  const response = await client.post<GenerateResponse>('/api/correct', req);
+  return response.data;
+}
+
 /**
  * Validate existing diagram code visually using the VLM.
  */

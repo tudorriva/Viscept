@@ -9,6 +9,7 @@
  * paper: Generate → Render → Inspect → Auto-Correct.
  */
 
+import 'dotenv/config';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';

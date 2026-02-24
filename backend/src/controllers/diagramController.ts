@@ -3,7 +3,7 @@
  */
 
 import { Request, Response } from 'express';
-import { generateWithOllama, getModelConfig, listOllamaModels, checkOllamaHealth } from '../services/ollamaService.js';
+import { generateWithOllama, correctWithOllama, getModelConfig, listOllamaModels, checkOllamaHealth } from '../services/ollamaService.js';
 import { formatCode as formatCodeService } from '../services/formatterService.js';
 import { getDemoData as getDemoDataService } from '../services/demoService.js';
 import { runPipeline, validateExistingDiagram } from '../services/pipelineService.js';
@@ -23,6 +23,13 @@ interface ValidateRequest {
   originalPrompt: string;
 }
 
+interface CorrectRequest {
+  code: string;
+  diagramType: string;
+  renderError: string;
+  originalPrompt?: string;
+}
+
 interface FormatRequest {
   code: string;
   language: string;
@@ -34,6 +41,8 @@ interface FormatRequest {
  */
 export async function generateDiagram(req: Request, res: Response): Promise<void> {
   const { prompt, diagramType, enableValidation = false, maxRetries } = req.body as GenerateRequest;
+
+  console.log('[Controller] Request body:', JSON.stringify(req.body));
 
   // Validate input
   if (!prompt || typeof prompt !== 'string') {
@@ -81,6 +90,46 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
     console.error('[Controller] Error in generateDiagram:', error);
     res.status(500).json({
       error: 'Failed to generate diagram',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * POST /api/correct - Correct diagram code using a render error message.
+ * Sends the original code + error to the AI to fix syntax issues.
+ */
+export async function correctDiagram(req: Request, res: Response): Promise<void> {
+  const { code, diagramType, renderError, originalPrompt } = req.body as CorrectRequest;
+
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'code is required and must be a string' });
+    return;
+  }
+  if (!diagramType || typeof diagramType !== 'string') {
+    res.status(400).json({ error: 'diagramType is required and must be a string' });
+    return;
+  }
+  if (!renderError || typeof renderError !== 'string') {
+    res.status(400).json({ error: 'renderError is required and must be a string' });
+    return;
+  }
+
+  const validTypes = ['mermaid', 'plantuml', 'dbml', 'graphviz'];
+  if (!validTypes.includes(diagramType)) {
+    res.status(400).json({ error: `Invalid diagramType. Must be one of: ${validTypes.join(', ')}` });
+    return;
+  }
+
+  try {
+    console.log(`[Controller] Correcting ${diagramType} diagram (error: "${renderError.substring(0, 80)}...")`);
+
+    const result = await correctWithOllama(code, diagramType, renderError, originalPrompt);
+    res.json(result);
+  } catch (error) {
+    console.error('[Controller] Error in correctDiagram:', error);
+    res.status(500).json({
+      error: 'Failed to correct diagram',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }

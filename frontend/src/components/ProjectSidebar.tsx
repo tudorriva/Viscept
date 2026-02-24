@@ -155,7 +155,7 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
                 </div>
                 <div className="flex items-center gap-1 text-xs mb-2" style={{ color: theme.colors.text.tertiary }}>
                   <Code size={12} />
-                  {project.diagramType.toUpperCase()}
+                  {(project.diagramType || 'mermaid').toUpperCase()}
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button

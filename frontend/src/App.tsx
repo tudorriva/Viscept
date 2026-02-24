@@ -12,9 +12,10 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { ValidationPanel } from './components/ValidationPanel';
 import { useProjects } from './hooks/useProjects';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { generateDiagram, formatCode as formatCodeAPI, fetchDemo, validateDiagram, ValidationResult } from './utils/api';
+import { generateDiagram, correctDiagram, formatCode as formatCodeAPI, fetchDemo, validateDiagram, ValidationResult } from './utils/api';
 import { DIAGRAM_EXAMPLES, DiagramExample } from './utils/examples';
 import { theme } from './theme';
+import mermaid from 'mermaid';
 import './index.css';
 import { AlertCircle } from 'lucide-react';
 
@@ -95,6 +96,34 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [prompt]);
 
+  /**
+   * Try to pre-render Mermaid code to detect syntax errors.
+   * Returns null if rendering succeeds, or the error message on failure.
+   */
+  const preRenderCheck = useCallback(async (diagramCode: string, lang: string): Promise<string | null> => {
+    if (lang !== 'mermaid') return null; // Only Mermaid has client-side pre-render
+
+    try {
+      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+      // Use a unique ID to avoid collisions
+      const id = `pre-render-check-${Date.now()}`;
+      await mermaid.render(id, diagramCode);
+      // Clean up the rendered element
+      const el = document.getElementById(id);
+      if (el) el.remove();
+      // Also remove the hidden container mermaid creates
+      const dEl = document.querySelector(`[id="d${id}"]`);
+      if (dEl) dEl.remove();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[PreRender] Syntax error detected:', msg);
+      return msg;
+    }
+  }, []);
+
+  const MAX_RENDER_RETRIES = 3;
+
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
 
@@ -103,26 +132,47 @@ export const App: React.FC = () => {
     setValidationResult(null);
 
     try {
-      const response = await generateDiagram({
+      let response = await generateDiagram({
         prompt,
         diagramType,
         enableValidation: autoValidation,
         maxRetries: 2,
       });
 
-      setCode(response.code);
+      let currentCode = response.code;
+      let attempts = 1;
+
+      // Self-correction loop: pre-render → detect error → send to AI → repeat
+      for (let i = 0; i < MAX_RENDER_RETRIES; i++) {
+        const renderErr = await preRenderCheck(currentCode, diagramType);
+        if (!renderErr) break; // Renders fine, we're done
+
+        console.log(`[AutoCorrect] Attempt ${i + 1}/${MAX_RENDER_RETRIES}: fixing render error`);
+        setError(`Auto-correcting render error (attempt ${i + 1}/${MAX_RENDER_RETRIES})...`);
+
+        const corrected = await correctDiagram({
+          code: currentCode,
+          diagramType,
+          renderError: renderErr,
+          originalPrompt: prompt,
+        });
+
+        currentCode = corrected.code;
+        attempts++;
+      }
+
+      setError(null); // Clear any "auto-correcting" message
+      setCode(currentCode);
+      setGenerationAttempts(attempts);
 
       // Store validation results if the pipeline returned them
       if (response.validation) {
         setValidationResult(response.validation);
       }
-      if (response.attempts) {
-        setGenerationAttempts(response.attempts);
-      }
 
       if (currentProject) {
         updateProject(currentProject.id, {
-          code: response.code,
+          code: currentCode,
           prompt,
           diagramType,
         });
@@ -133,7 +183,7 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [prompt, diagramType, currentProject, updateProject, autoValidation]);
+  }, [prompt, diagramType, currentProject, updateProject, autoValidation, preRenderCheck]);
 
   /**
    * Manually validate the current diagram using the Visual Judge.
@@ -212,6 +262,19 @@ export const App: React.FC = () => {
     [currentProject, createProject, updateProject, openProject]
   );
 
+  /**
+   * Handle code changes from the visual editor (bidirectional sync).
+   */
+  const handleVisualEditorCodeChange = useCallback(
+    (newCode: string) => {
+      setCode(newCode);
+      if (currentProject) {
+        updateProject(currentProject.id, { code: newCode });
+      }
+    },
+    [currentProject, updateProject]
+  );
+
   return (
     <div
       className="flex flex-col h-screen w-screen"
@@ -288,7 +351,7 @@ export const App: React.FC = () => {
           style={{ borderColor: theme.colors.border.medium }}
         >
           <div ref={previewRef} className="flex-1 overflow-hidden">
-            <DiagramPreview code={code} language={diagramType} />
+            <DiagramPreview code={code} language={diagramType} onCodeChange={handleVisualEditorCodeChange} isGenerating={isLoading} />
           </div>
 
           {/* Visual Validation Panel */}
