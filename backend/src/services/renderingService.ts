@@ -73,7 +73,7 @@ async function renderMermaid(code: string): Promise<RenderResult> {
 
     // Try using mmdc (mermaid-cli) for headless rendering
     await execAsync(
-      `npx -y @mermaid-js/mermaid-cli mmdc -i "${inputPath}" -o "${outputPath}" -b transparent --width 1200 --height 800`,
+      `npx mmdc -i "${inputPath}" -o "${outputPath}" -b transparent --width 1200 --height 800`,
       { timeout: 30000 }
     );
 
@@ -305,7 +305,7 @@ export async function checkRenderingCapabilities(): Promise<Record<string, boole
 
   // Check mmdc (mermaid-cli)
   try {
-    await execAsync('npx -y @mermaid-js/mermaid-cli mmdc --version', { timeout: 15000 });
+    await execAsync('npx mmdc --version', { timeout: 15000 });
     capabilities.mermaid = true;
     capabilities.dbml = true;
   } catch {

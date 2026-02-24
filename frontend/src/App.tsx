@@ -315,7 +315,12 @@ export const App: React.FC = () => {
             prompt={prompt}
             onPromptChange={setPrompt}
             diagramType={diagramType}
-            onDiagramTypeChange={setDiagramType}
+            onDiagramTypeChange={(type: DiagramType) => {
+              setDiagramType(type);
+              setCode('');
+              setError(null);
+              setValidationResult(null);
+            }}
             isLoading={isLoading}
             onGenerate={handleGenerate}
             onLoadDemo={handleLoadDemo}

@@ -50,6 +50,9 @@ Check for the following issues:
 3. LAYOUT QUALITY: Is the flow logical (e.g., top-to-bottom, left-to-right)?
 4. LOGIC CORRECTNESS: Does the diagram accurately represent the user's request?
 5. VISUAL CLUTTER: Are elements unnecessarily crowded together?
+6. COMPLETENESS: Is any part of the diagram cut off, clipped, or extending beyond the visible area? Are all nodes fully visible with no edges disappearing off-screen?
+
+If ANY part of the diagram is cut off, clipped at edges, or visually incomplete, you MUST return FAIL with confidence 0.9 or higher.
 
 Respond in EXACTLY this JSON format (no markdown fences, no extra text):
 {
@@ -121,13 +124,23 @@ function parseValidationResponse(raw: string): ValidationResult {
 
     const parsed = JSON.parse(cleaned);
 
+    const confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5));
+    const rawStatus = String(parsed.status).toUpperCase() === 'PASS' ? 'PASS' : 'FAIL';
+
+    // A PASS with low confidence is unreliable — treat as FAIL
+    const CONFIDENCE_THRESHOLD = 0.75;
     const status: 'PASS' | 'FAIL' =
-      String(parsed.status).toUpperCase() === 'PASS' ? 'PASS' : 'FAIL';
+      rawStatus === 'PASS' && confidence < CONFIDENCE_THRESHOLD ? 'FAIL' : rawStatus;
+
+    const reason =
+      rawStatus === 'PASS' && confidence < CONFIDENCE_THRESHOLD
+        ? `Low-confidence pass (${(confidence * 100).toFixed(0)}%) — treated as FAIL. ${String(parsed.reason || '')}`
+        : String(parsed.reason || 'No reason provided');
 
     return {
       status,
-      reason: String(parsed.reason || 'No reason provided'),
-      confidence: Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5)),
+      reason,
+      confidence,
       suggestions: Array.isArray(parsed.suggestions)
         ? parsed.suggestions.map(String)
         : [],

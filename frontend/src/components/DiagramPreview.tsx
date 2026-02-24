@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { Eye, AlertCircle, Loader, Pencil, Monitor } from 'lucide-react';
+import { Eye, AlertCircle, Loader, Pencil, Monitor, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { theme } from '../theme';
 import { DiagramEditor } from './DiagramEditor';
 
@@ -15,9 +15,47 @@ interface DiagramPreviewProps {
 
 export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [editorMode, setEditorMode] = useState<'preview' | 'editor'>('preview');
+
+  // Zoom / Pan state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0 });
+  const panOffset = useRef({ x: 0, y: 0 });
+
+  // Reset zoom/pan when code changes
+  useEffect(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, [code, language]);
+
+  /** After inserting SVG, make it scale-friendly — preserve viewBox but remove fixed dimensions. */
+  const fixSvgSize = () => {
+    if (!containerRef.current) return;
+    const svgEl = containerRef.current.querySelector('svg');
+    if (svgEl) {
+      // Ensure the SVG has a viewBox so it can scale
+      if (!svgEl.getAttribute('viewBox')) {
+        const w = svgEl.getAttribute('width') || svgEl.getBoundingClientRect().width;
+        const h = svgEl.getAttribute('height') || svgEl.getBoundingClientRect().height;
+        if (w && h) {
+          svgEl.setAttribute('viewBox', `0 0 ${parseFloat(String(w))} ${parseFloat(String(h))}`);
+        }
+      }
+      svgEl.removeAttribute('height');
+      svgEl.removeAttribute('width');
+      svgEl.removeAttribute('style');
+      svgEl.style.width = '100%';
+      svgEl.style.height = 'auto';
+      svgEl.style.maxWidth = '100%';
+      svgEl.style.display = 'block';
+      svgEl.style.overflow = 'visible';
+    }
+  };
 
   useEffect(() => {
     if (!code.trim() || !containerRef.current) {
@@ -60,15 +98,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       const { svg } = await mermaid.render('mermaid-diagram', code);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        // Make the SVG scale to fit the container
-        const svgEl = containerRef.current.querySelector('svg');
-        if (svgEl) {
-          svgEl.style.maxWidth = '100%';
-          svgEl.style.height = 'auto';
-          svgEl.style.maxHeight = '100%';
-          svgEl.removeAttribute('height');
-          svgEl.setAttribute('width', '100%');
-        }
+        fixSvgSize();
       }
     } catch (error) {
       throw new Error(`Mermaid render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -86,14 +116,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       const { svg } = await mermaid.render('dbml-diagram', mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        const svgEl = containerRef.current.querySelector('svg');
-        if (svgEl) {
-          svgEl.style.maxWidth = '100%';
-          svgEl.style.height = 'auto';
-          svgEl.style.maxHeight = '100%';
-          svgEl.removeAttribute('height');
-          svgEl.setAttribute('width', '100%');
-        }
+        fixSvgSize();
       }
     } catch (error) {
       throw new Error(`DBML render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -111,14 +134,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       const { svg } = await mermaid.render('graphviz-diagram', mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        const svgEl = containerRef.current.querySelector('svg');
-        if (svgEl) {
-          svgEl.style.maxWidth = '100%';
-          svgEl.style.height = 'auto';
-          svgEl.style.maxHeight = '100%';
-          svgEl.removeAttribute('height');
-          svgEl.setAttribute('width', '100%');
-        }
+        fixSvgSize();
       }
     } catch (error) {
       throw new Error(`Graphviz render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -165,6 +181,40 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
 
     return mermaidCode.trim() || 'flowchart LR\n  A["Start"] --> B["End"]';
   };
+
+  // ── Zoom / Pan handlers ────────────────────────────────────────────────
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom((z) => Math.min(Math.max(0.2, z + delta), 5));
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only pan with left-click (middle-click also ok)
+    if (e.button !== 0 && e.button !== 1) return;
+    isPanning.current = true;
+    panStart.current = { x: e.clientX, y: e.clientY };
+    panOffset.current = { ...pan };
+    (e.currentTarget as HTMLElement).style.cursor = 'grabbing';
+  }, [pan]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanning.current) return;
+    const dx = e.clientX - panStart.current.x;
+    const dy = e.clientY - panStart.current.y;
+    setPan({ x: panOffset.current.x + dx, y: panOffset.current.y + dy });
+  }, []);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    isPanning.current = false;
+    (e.currentTarget as HTMLElement).style.cursor = 'grab';
+  }, []);
+
+  const handleFitView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-800/50 to-slate-900/50">
@@ -233,11 +283,20 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
           />
         </div>
       ) : (
-        <div className="flex-1 overflow-auto flex flex-col items-center justify-center p-6 relative">
+        <div
+          ref={viewportRef}
+          className="flex-1 overflow-hidden relative"
+          style={{ cursor: 'grab' }}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
 
         {/* AI Generating / Correcting overlay */}
         {isGenerating && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4"
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4"
             style={{ backgroundColor: `${theme.colors.bg.primary}e6` }}>
             <div className="relative">
               <div className="w-16 h-16 rounded-full border-4 border-transparent animate-spin"
@@ -251,33 +310,111 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
         )}
 
         {loading && !isGenerating && (
-          <div className="flex flex-col items-center gap-3 text-slate-400">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-slate-400">
             <Loader size={28} className="animate-spin" color={theme.colors.text.secondary} />
             <p className="text-sm font-medium">Rendering diagram...</p>
           </div>
         )}
 
         {error && !isGenerating && (
-          <div className="p-6 rounded-lg bg-red-900/20 border border-red-500/30 max-w-md">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle size={16} color="#ef4444" />
-              <p className="text-sm font-semibold text-red-400">Render Error</p>
+          <div className="absolute inset-0 z-10 flex items-center justify-center">
+            <div className="p-6 rounded-lg bg-red-900/20 border border-red-500/30 max-w-md">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle size={16} color="#ef4444" />
+                <p className="text-sm font-semibold text-red-400">Render Error</p>
+              </div>
+              <p className="text-xs text-red-300 font-mono">{error}</p>
             </div>
-            <p className="text-xs text-red-300 font-mono">{error}</p>
           </div>
         )}
 
         {!code.trim() && !loading && !error && !isGenerating && (
-          <div className="text-center">
-            <Eye size={48} color={theme.colors.text.secondary} className="mb-4 opacity-50" />
-            <p className="text-slate-400 text-sm">Generate or paste code to render</p>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <Eye size={48} color={theme.colors.text.secondary} className="mb-4 opacity-50" />
+              <p className="text-slate-400 text-sm">Generate or paste code to render</p>
+            </div>
           </div>
         )}
 
+        {/* Zoomable / Pannable diagram container */}
         <div
-          ref={containerRef}
-          className="w-full h-full flex items-center justify-center"
-        />
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: '0 0',
+            transition: isPanning.current ? 'none' : 'transform 0.1s ease-out',
+            minWidth: '100%',
+            minHeight: '100%',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+        >
+          <div
+            ref={containerRef}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              overflow: 'visible',
+            }}
+          />
+        </div>
+
+        {/* Zoom controls */}
+        <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-1">
+          <button
+            onClick={() => setZoom((z) => Math.min(5, z + 0.2))}
+            className="p-2 rounded-md transition-all hover:scale-105"
+            style={{
+              backgroundColor: theme.colors.bg.secondary,
+              color: theme.colors.text.secondary,
+              border: `1px solid ${theme.colors.border.medium}`,
+            }}
+            title="Zoom In"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            onClick={() => setZoom((z) => Math.max(0.2, z - 0.2))}
+            className="p-2 rounded-md transition-all hover:scale-105"
+            style={{
+              backgroundColor: theme.colors.bg.secondary,
+              color: theme.colors.text.secondary,
+              border: `1px solid ${theme.colors.border.medium}`,
+            }}
+            title="Zoom Out"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <button
+            onClick={handleFitView}
+            className="p-2 rounded-md transition-all hover:scale-105"
+            style={{
+              backgroundColor: theme.colors.bg.secondary,
+              color: theme.colors.text.secondary,
+              border: `1px solid ${theme.colors.border.medium}`,
+            }}
+            title="Fit to View"
+          >
+            <Maximize size={14} />
+          </button>
+        </div>
+
+        {/* Zoom indicator */}
+        <div
+          className="absolute bottom-4 left-4 z-10 text-xs px-2 py-1 rounded"
+          style={{
+            backgroundColor: `${theme.colors.bg.secondary}cc`,
+            color: theme.colors.text.tertiary,
+            border: `1px solid ${theme.colors.border.medium}`,
+          }}
+        >
+          {Math.round(zoom * 100)}%
+        </div>
+
         </div>
       )}
     </div>
