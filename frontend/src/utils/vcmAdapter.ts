@@ -334,15 +334,36 @@ export function parsedDiagramToVCM(
 
 /**
  * Map VCM NodeShape → React Flow custom node type string.
- * Unrecognised shapes fall back to 'editableNode'.
+ * Each shape maps to a dedicated custom component registered in DiagramNodes.tsx.
  */
 function shapeToRFNodeType(shape: NodeShape): string {
   switch (shape) {
     case 'table':
     case 'record':
       return 'tableNode';
-    // All other shapes use the generic editableNode for now;
-    // Step 2 will register per-shape custom components.
+    case 'diamond':
+      return 'diamondNode';
+    case 'cylinder':
+      return 'cylinderNode';
+    case 'circle':
+      return 'circleNode';
+    case 'doubleCircle':
+      return 'doubleCircleNode';
+    case 'lifeline':
+      return 'lifelineNode';
+    case 'stadium':
+      return 'stadiumNode';
+    case 'hexagon':
+      return 'hexagonNode';
+    case 'parallelogram':
+    case 'trapezoid':
+      return 'parallelogramNode';
+    case 'ellipse':
+      return 'ellipseNode';
+    case 'rect':
+    case 'roundedRect':
+    case 'subroutine':
+    case 'note':
     default:
       return 'editableNode';
   }
@@ -503,6 +524,7 @@ export function vcmToReactFlow(
 
 /**
  * Map VCM NodeShape back to the React Flow node type the serializer expects.
+ * The serializer only distinguishes 'tableNode' vs 'editableNode'.
  */
 function shapeToSerializerNodeType(shape: NodeShape): string {
   switch (shape) {

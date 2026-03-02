@@ -1,22 +1,25 @@
 /**
  * DiagramEditor — Interactive visual diagram editor using React Flow.
  *
+ * Architecture (Steps 2 + 3):
+ *   The Visual Canonical Model (VCM) is the single source of truth.
+ *   Data flow:
+ *     DSL text → dslToVCM() → vcmRef  → vcmToReactFlow() → React Flow state
+ *     RF events → reactFlowToVCM(prev) → vcmRef  → vcmToDSL() → onCodeChange()
+ *
+ *   Loop prevention:
+ *     codeDrivenGenRef (monotonic counter) gates visual→code serialisation
+ *     while a code→visual sync is in flight.
+ *
  * Features:
+ *   - Shape-accurate rendering (diamond, cylinder, lifeline, circle, table, …)
  *   - Drag & drop nodes to reposition them
  *   - Draw connections between nodes by dragging from handles
  *   - Double-click to edit node labels inline
  *   - Add new nodes via the toolbar
  *   - Delete selected nodes/edges with Backspace/Delete
- *   - Bidirectional sync: visual changes → code updates
+ *   - Bidirectional sync: visual ↔ code via VCM
  *   - Minimap, controls, and background grid
- *
- * Key design decisions:
- *   - A monotonic counter (`codeDrivenGenRef`) replaces the boolean `isCodeDriven`
- *     flag to avoid the race-condition where React Flow's internal dimension
- *     changes would fire between the two rAF frames.
- *   - Edges are set in a setTimeout callback *after* nodes so that React Flow
- *     has measured node dimensions — the root cause of edges not appearing.
- *   - ReactFlowProvider wrapper enables `useReactFlow().fitView()`.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,7 +33,7 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
-  addEdge,
+  addEdge as rfAddEdge,
   type Connection,
   type Node,
   type Edge,
@@ -46,24 +49,21 @@ import '@xyflow/react/dist/style.css';
 import { Plus, Trash2, MousePointer } from 'lucide-react';
 import { theme } from '../theme';
 import { customNodeTypes } from './DiagramNodes';
-import { parseDiagramCode } from '../utils/diagramParser';
-import { serializeDiagram } from '../utils/diagramSerializer';
+
+// VCM imports
+import type { VisualDiagram } from '../types/vcm';
+import { createVisualNode, createVisualEdge, addNode as vcmAddNode } from '../types/vcm';
+import {
+  dslToVCM,
+  vcmToReactFlow,
+  vcmToDSL,
+  reactFlowToVCM,
+} from '../utils/vcmAdapter';
 
 // ── Default edge appearance ────────────────────────────────────────────────────
 
 const EDGE_STYLE = { stroke: '#64748b', strokeWidth: 2 };
 const EDGE_MARKER: Edge['markerEnd'] = { type: MarkerType.ArrowClosed, color: '#64748b' };
-const LABEL_STYLE = { fill: '#cbd5e1', fontSize: 11 };
-
-function normalizeEdge(e: Edge): Edge {
-  return {
-    ...e,
-    type: e.type || 'smoothstep',
-    style: { ...EDGE_STYLE, ...(e.style || {}) },
-    markerEnd: e.markerEnd || EDGE_MARKER,
-    labelStyle: LABEL_STYLE,
-  };
-}
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -82,27 +82,34 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [subType, setSubType] = useState('flowchart');
   const { fitView } = useReactFlow();
+
+  /**
+   * The VCM is the source of truth.  Stored in a ref so that event handlers
+   * always see the latest version without causing re-renders.
+   */
+  const vcmRef = useRef<VisualDiagram | null>(null);
 
   // Monotonic generation counter — any changes while !== 0 are suppressed
   const codeDrivenGenRef = useRef(0);
   const lastCodeRef = useRef(code);
   const serializeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stable label-change callback
+  // ── Stable label-change callback ────────────────────────────────────────
+
   const labelChangeRef = useRef<(id: string, label: string) => void>(() => {});
   const stableOnLabelChange = useCallback((nodeId: string, newLabel: string) => {
     labelChangeRef.current(nodeId, newLabel);
   }, []);
 
-  // ── Code → Visual sync ──────────────────────────────────────────────────
+  // ── Code → VCM → React Flow sync ───────────────────────────────────────
 
   useEffect(() => {
     if (code === lastCodeRef.current && nodes.length > 0) return undefined;
     lastCodeRef.current = code;
 
     if (!code.trim()) {
+      vcmRef.current = null;
       setNodes([]);
       setEdges([]);
       return undefined;
@@ -110,21 +117,19 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
 
     const gen = ++codeDrivenGenRef.current;
 
-    const parsed = parseDiagramCode(code, language);
-    setSubType(parsed.subType || 'flowchart');
+    // 1.  Parse DSL → VCM
+    const vcm = dslToVCM(code, language);
+    vcmRef.current = vcm;
 
-    const nodesWithCallbacks = parsed.nodes.map((n: Node) => ({
-      ...n,
-      data: { ...n.data, onLabelChange: stableOnLabelChange },
-    }));
+    // 2.  VCM → React Flow nodes + edges
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm, stableOnLabelChange);
 
-    // Step 1: set nodes — React Flow measures them in the next paint
-    setNodes(nodesWithCallbacks);
+    // 3.  Set nodes first — React Flow needs to measure them
+    setNodes(rfNodes);
 
-    // Step 2: set edges *after* nodes are measured
-    const normalizedEdges = parsed.edges.map(normalizeEdge);
+    // 4.  Set edges after a frame so RF has dimensions
     const timer = setTimeout(() => {
-      setEdges(normalizedEdges);
+      setEdges(rfEdges);
 
       requestAnimationFrame(() => {
         fitView({ padding: 0.3, duration: 200 });
@@ -137,37 +142,55 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
     return () => clearTimeout(timer);
   }, [code, language, stableOnLabelChange, fitView]);
 
-  // ── Visual → Code serialisation ─────────────────────────────────────────
+  // ── VCM → DSL serialisation (debounced) ─────────────────────────────────
 
-  const emitCodeChange = useCallback(
-    (updatedNodes: Node[], updatedEdges: Edge[]) => {
+  const emitCodeFromVCM = useCallback(
+    (vcm: VisualDiagram) => {
       if (codeDrivenGenRef.current !== 0) return;
 
       if (serializeTimeout.current) clearTimeout(serializeTimeout.current);
 
       serializeTimeout.current = setTimeout(() => {
-        const newCode = serializeDiagram(updatedNodes, updatedEdges, language, subType);
+        const newCode = vcmToDSL(vcm);
         if (newCode && newCode !== lastCodeRef.current) {
           lastCodeRef.current = newCode;
           onCodeChange(newCode);
         }
       }, 300);
     },
-    [language, subType, onCodeChange],
+    [onCodeChange],
   );
 
-  // Keep label-change ref up to date
+  /**
+   * Read current RF state, patch VCM, and emit DSL.
+   * Used by node/edge change handlers.
+   */
+  const syncVCMFromRF = useCallback(
+    (curNodes: Node[], curEdges: Edge[]) => {
+      if (codeDrivenGenRef.current !== 0 || !vcmRef.current) return;
+
+      const updated = reactFlowToVCM(curNodes, curEdges, vcmRef.current);
+      vcmRef.current = updated;
+      emitCodeFromVCM(updated);
+    },
+    [emitCodeFromVCM],
+  );
+
+  // ── Label change handler (keeps VCM in sync) ───────────────────────────
+
   useEffect(() => {
     labelChangeRef.current = (nodeId: string, newLabel: string) => {
+      // Update RF nodes
       setNodes((nds) =>
         nds.map((n) =>
           n.id === nodeId ? { ...n, data: { ...n.data, label: newLabel } } : n,
         ),
       );
+      // Sync VCM after RF state settles
       requestAnimationFrame(() => {
         setNodes((cur) => {
           setEdges((curEdges) => {
-            emitCodeChange(cur, curEdges);
+            syncVCMFromRF(cur, curEdges);
             return curEdges;
           });
           return cur;
@@ -176,7 +199,7 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
     };
   });
 
-  // ── Node changes ────────────────────────────────────────────────────────
+  // ── Node changes (drag, remove) ─────────────────────────────────────────
 
   const handleNodesChange: OnNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -189,7 +212,7 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
         requestAnimationFrame(() => {
           setNodes((cur) => {
             setEdges((curEdges) => {
-              emitCodeChange(cur, curEdges);
+              syncVCMFromRF(cur, curEdges);
               return curEdges;
             });
             return cur;
@@ -197,10 +220,10 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
         });
       }
     },
-    [onNodesChange, emitCodeChange],
+    [onNodesChange, syncVCMFromRF],
   );
 
-  // ── Edge changes ────────────────────────────────────────────────────────
+  // ── Edge changes (remove) ───────────────────────────────────────────────
 
   const handleEdgesChange: OnEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
@@ -210,7 +233,7 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
         requestAnimationFrame(() => {
           setNodes((cur) => {
             setEdges((curEdges) => {
-              emitCodeChange(cur, curEdges);
+              syncVCMFromRF(cur, curEdges);
               return curEdges;
             });
             return cur;
@@ -218,51 +241,70 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
         });
       }
     },
-    [onEdgesChange, emitCodeChange],
+    [onEdgesChange, syncVCMFromRF],
   );
 
   // ── New connection ──────────────────────────────────────────────────────
 
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
-      const newEdge = normalizeEdge({
+      const newEdge: Edge = {
         ...connection,
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
-      } as Edge);
+        type: 'smoothstep',
+        style: EDGE_STYLE,
+        markerEnd: EDGE_MARKER,
+        labelStyle: { fill: '#cbd5e1', fontSize: 11 },
+      } as Edge;
 
       setEdges((eds) => {
-        const updated = addEdge(newEdge, eds);
+        const updated = rfAddEdge(newEdge, eds);
         setNodes((cur) => {
-          emitCodeChange(cur, updated);
+          syncVCMFromRF(cur, updated);
           return cur;
         });
         return updated;
       });
     },
-    [setEdges, emitCodeChange],
+    [setEdges, syncVCMFromRF],
   );
 
   // ── Add node ────────────────────────────────────────────────────────────
 
   const handleAddNode = useCallback(() => {
     const id = `node_${Date.now()}`;
-    const newNode: Node = {
+
+    // Create in VCM first
+    const vNode = createVisualNode({
+      id,
+      label: 'New Node',
+      shape: 'roundedRect',
+      position: { x: 100 + Math.random() * 300, y: 100 + Math.random() * 200 },
+    });
+
+    // If we have a VCM, add to it; the RF node is derived
+    if (vcmRef.current) {
+      vcmRef.current = vcmAddNode(vcmRef.current, vNode);
+    }
+
+    // Also add directly to RF for immediate visual feedback
+    const rfNode: Node = {
       id,
       type: 'editableNode',
-      position: { x: 100 + Math.random() * 300, y: 100 + Math.random() * 200 },
-      data: { label: 'New Node', onLabelChange: stableOnLabelChange },
+      position: { ...vNode.position },
+      data: { label: 'New Node', onLabelChange: stableOnLabelChange, vcmShape: 'roundedRect' },
       style: { minWidth: 120 },
     };
 
     setNodes((nds) => {
-      const updated = [...nds, newNode];
+      const updated = [...nds, rfNode];
       setEdges((curEdges) => {
-        emitCodeChange(updated, curEdges);
+        syncVCMFromRF(updated, curEdges);
         return curEdges;
       });
       return updated;
     });
-  }, [setNodes, emitCodeChange, stableOnLabelChange]);
+  }, [setNodes, syncVCMFromRF, stableOnLabelChange]);
 
   // ── Delete selected ─────────────────────────────────────────────────────
 
@@ -275,13 +317,13 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
         const rem = eds.filter(
           (e) => !e.selected && !removedIds.has(e.source) && !removedIds.has(e.target),
         );
-        emitCodeChange(remaining, rem);
+        syncVCMFromRF(remaining, rem);
         return rem;
       });
 
       return remaining;
     });
-  }, [setNodes, setEdges, emitCodeChange]);
+  }, [setNodes, setEdges, syncVCMFromRF]);
 
   // ── Keyboard ────────────────────────────────────────────────────────────
 
@@ -308,6 +350,10 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
     }),
     [],
   );
+
+  // ── Diagram info for status bar ─────────────────────────────────────────
+
+  const subType = vcmRef.current?.subType ?? 'flowchart';
 
   return (
     <div
@@ -410,6 +456,8 @@ const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
             <span>{nodes.length} nodes</span>
             <span>·</span>
             <span>{edges.length} edges</span>
+            <span>·</span>
+            <span className="text-[10px] opacity-60">{subType}</span>
             <span>·</span>
             <span className="flex items-center gap-1">
               <MousePointer size={10} />
