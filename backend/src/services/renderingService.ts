@@ -209,11 +209,13 @@ function sanitiseType(raw: string): string {
 
 /**
  * Convert DBML code to Mermaid erDiagram syntax for rendering.
+ * Now infers FK relationships from `_id` field naming convention.
  */
 function convertDBMLToMermaidER(dbml: string): string {
   const lines = ['erDiagram'];
   const tables = dbml.match(/Table\s+(\w+)\s*\{([^}]*)\}/gi) || [];
   const tableNames: string[] = [];
+  const tableFieldLines = new Map<string, string[]>();
   const refs: string[] = [];
 
   for (const table of tables) {
@@ -230,12 +232,17 @@ function convertDBMLToMermaidER(dbml: string): string {
       const fields = body
         .split('\n')
         .map((f) => f.trim())
-        .filter((f) => f && !f.startsWith('//') && !f.startsWith('indexes'));
+        .filter((f) => f && !f.startsWith('//') && !f.startsWith('indexes') && !f.startsWith('Note'));
 
+      const fieldTexts: string[] = [];
       lines.push(`  ${tableName} {`);
       for (const field of fields) {
         // Skip lines that are purely index/constraint blocks
         if (/^\(/.test(field) || /^primary\b/i.test(field) || /^unique\b/i.test(field)) continue;
+
+        // Detect PK / FK markers
+        const isPK = /\[.*pk.*\]/i.test(field) || /\[.*primary\s*key.*\]/i.test(field);
+        const isFK = /\[.*ref.*\]/i.test(field);
 
         // Strip inline annotations like [pk], [not null], [ref: ...] before splitting
         const clean = field.replace(/\[.*?\]/g, '').trim();
@@ -246,32 +253,91 @@ function convertDBMLToMermaidER(dbml: string): string {
           const fieldName = parts[0].replace(/[^a-zA-Z0-9_]/g, '');
           const fieldType = sanitiseType(parts[1]);
           if (fieldName && fieldType) {
-            lines.push(`    ${fieldType} ${fieldName}`);
+            const marker = isPK ? ' PK' : isFK ? ' FK' : '';
+            lines.push(`    ${fieldType} ${fieldName}${marker}`);
           }
         }
 
+        fieldTexts.push(field);
+
         // Extract references from the original (unsanitised) line
-        const refMatch = field.match(/\[ref:\s*[><-]\s*(\w+)\.(\w+)\]/i);
+        const refMatch = field.match(/\[ref:\s*([><-])\s*(\w+)\.(\w+)\]/i);
         if (refMatch) {
-          refs.push(`  ${tableName} ||--o{ ${refMatch[1]} : "references"`);
+          const [, dir, refTable] = refMatch;
+          if (dir === '>') {
+            refs.push(`  ${tableName} }o--|| ${refTable} : "references"`);
+          } else if (dir === '<') {
+            refs.push(`  ${refTable} }o--|| ${tableName} : "references"`);
+          } else {
+            refs.push(`  ${tableName} ||--|| ${refTable} : "references"`);
+          }
         }
       }
       lines.push('  }');
+      tableFieldLines.set(tableName.toLowerCase(), fieldTexts);
     }
   }
 
   // Also parse standalone Ref declarations: Ref: table1.col > table2.col
-  const standaloneRefs = dbml.match(/Ref\s*:\s*(\w+)\.(\w+)\s*[<>-]+\s*(\w+)\.(\w+)/gi) || [];
+  const standaloneRefs = dbml.match(/Ref[^{]*:\s*(\w+)\.(\w+)\s*[<>-]+\s*(\w+)\.(\w+)/gi) || [];
   for (const ref of standaloneRefs) {
-    const m = ref.match(/Ref\s*:\s*(\w+)\.\w+\s*([<>-]+)\s*(\w+)\.\w+/i);
+    const m = ref.match(/(\w+)\.\w+\s*([<>-]+)\s*(\w+)\.\w+/i);
     if (m) {
       const [, left, dir, right] = m;
       if (dir.includes('>')) {
-        refs.push(`  ${left} ||--o{ ${right} : "references"`);
+        refs.push(`  ${left} }o--|| ${right} : "references"`);
       } else if (dir.includes('<')) {
-        refs.push(`  ${right} ||--o{ ${left} : "references"`);
+        refs.push(`  ${right} }o--|| ${left} : "references"`);
       } else {
         refs.push(`  ${left} ||--|| ${right} : "references"`);
+      }
+    }
+  }
+
+  // Multi-line Ref blocks: Ref { posts.user_id > users.id }
+  const refBlocks = dbml.match(/Ref\s*(?:\w+\s*)?\{([^}]*)\}/gi) || [];
+  for (const block of refBlocks) {
+    // Skip Table blocks (they also have braces)
+    if (/^Table\s/i.test(block.trim())) continue;
+    const bodyMatch = block.match(/\{([^}]*)\}/);
+    if (!bodyMatch) continue;
+    const refBodyLines = bodyMatch[1].split('\n').map((l) => l.trim()).filter(Boolean);
+    for (const rl of refBodyLines) {
+      const m = rl.match(/(\w+)\.(\w+)\s*([<>-]+)\s*(\w+)\.(\w+)/);
+      if (m) {
+        const [, left, , dir, right] = m;
+        if (dir.includes('>')) refs.push(`  ${left} }o--|| ${right} : "references"`);
+        else if (dir.includes('<')) refs.push(`  ${right} }o--|| ${left} : "references"`);
+        else refs.push(`  ${left} ||--|| ${right} : "references"`);
+      }
+    }
+  }
+
+  // Infer FK relationships from _id / _fk field naming convention
+  const lowerTableNames = tableNames.map((t) => t.toLowerCase());
+  for (const tableName of tableNames) {
+    const fields = tableFieldLines.get(tableName.toLowerCase()) || [];
+    for (const field of fields) {
+      if (/\[ref:/i.test(field)) continue; // already has explicit ref
+      const clean = field.replace(/\[.*?\]/g, '').trim();
+      const parts = clean.split(/\s+/);
+      if (parts.length < 2) continue;
+      const fName = parts[0].toLowerCase();
+      const fkMatch = fName.match(/^(\w+?)_(?:id|fk)$/);
+      if (fkMatch) {
+        const baseName = fkMatch[1];
+        const targetIdx = lowerTableNames.findIndex(
+          (t) => t === baseName || t === baseName + 's' || t + 's' === baseName
+        );
+        if (targetIdx !== -1) {
+          const targetTable = tableNames[targetIdx];
+          const alreadyExists = refs.some(
+            (r) => r.includes(tableName) && r.includes(targetTable)
+          );
+          if (!alreadyExists) {
+            refs.push(`  ${tableName} }o--|| ${targetTable} : "${fName}"`);
+          }
+        }
       }
     }
   }

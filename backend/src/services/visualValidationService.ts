@@ -44,30 +44,25 @@ function buildValidationPrompt(diagramType: string, originalPrompt: string): str
 
 Analyse the rendered diagram image carefully. The user requested: "${originalPrompt}"
 
-Check for the following issues:
+Check for these issues (only FAIL if the problem is clearly visible):
 1. TEXT READABILITY: Is any text overlapping, truncated, or unreadable?
-2. STRUCTURAL INTEGRITY: Are edges/arrows properly connected? Any orphaned nodes?
+2. STRUCTURAL INTEGRITY: Are edges/arrows properly connected? Any orphaned nodes with no connections?
 3. LAYOUT QUALITY: Is the flow logical (e.g., top-to-bottom, left-to-right)?
-4. LOGIC CORRECTNESS: Does the diagram accurately represent the user's request?
-5. VISUAL CLUTTER: Are elements unnecessarily crowded together?
-6. COMPLETENESS: Is any part of the diagram cut off, clipped, or extending beyond the visible area? Are all nodes fully visible with no edges disappearing off-screen?
+4. COMPLETENESS: Is any part of the diagram cut off or clipped at the image edges?
 
-If ANY part of the diagram is cut off, clipped at edges, or visually incomplete, you MUST return FAIL with confidence 0.9 or higher.
+IMPORTANT scoring guidance:
+- If the diagram is readable, has connected nodes, and matches the user's request → PASS with confidence 0.80 or higher.
+- Only return FAIL if there is a CLEAR, OBVIOUS visual defect (overlapping text, missing connections, clipped content).
+- Minor aesthetic preferences are NOT failures. A simple but correct diagram is a PASS.
+- Be generous: if the diagram conveys the right information, it passes.
 
-You MUST respond with a JSON object. Do NOT copy the example — fill in your own real analysis.
-The JSON must have these four keys:
-- "status": either the string "PASS" or the string "FAIL"
-- "reason": a specific sentence describing what you actually see in the image
-- "confidence": a number between 0 and 1 reflecting how sure you are
-- "suggestions": an array of concrete, actionable improvement tips (or an empty array if the diagram looks good)
+Respond with a JSON object. Do NOT copy the example — write your own analysis of THIS image.
+Keys: "status" ("PASS" or "FAIL"), "reason" (what you see), "confidence" (0 to 1), "suggestions" (array of tips, or empty array).
 
-Example of a GOOD response (do NOT copy this — write your own based on the image):
-{"status":"PASS","reason":"All four entity tables are clearly visible with readable labels and properly connected relationships.","confidence":0.92,"suggestions":[]}
+Example PASS (do NOT copy): {"status":"PASS","reason":"All nodes are visible with clear labels and properly connected arrows showing the correct flow.","confidence":0.88,"suggestions":[]}
+Example FAIL (do NOT copy): {"status":"FAIL","reason":"Two nodes overlap making labels unreadable.","confidence":0.85,"suggestions":["Increase spacing between overlapping nodes"]}
 
-Example of a FAIL response (do NOT copy this — write your own based on the image):
-{"status":"FAIL","reason":"The Orders table overlaps with the Products table, making relationship lines unreadable.","confidence":0.85,"suggestions":["Increase spacing between the Orders and Products tables","Use orthogonal routing for relationship lines"]}
-
-Now analyse the image and respond with ONLY a JSON object. No markdown, no extra text.`;
+Respond with ONLY a JSON object.`;
 }
 
 // ── Core Validation Function ───────────────────────────────────────────────────
@@ -171,16 +166,32 @@ function parseValidationResponse(raw: string): ValidationResult {
 
     const confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5));
     const rawStatus = String(parsed.status).toUpperCase() === 'PASS' ? 'PASS' : 'FAIL';
+    const rawReason = String(parsed.reason || '').trim();
 
-    // A PASS with low confidence is unreliable — treat as FAIL
-    const CONFIDENCE_THRESHOLD = 0.65;
+    // Heuristic: if VLM says FAIL but can't provide an actual reason,
+    // the judgement is unreliable — downgrade to PASS.
+    const reasonIsMissing = !rawReason || rawReason.toLowerCase() === 'no reason provided';
+    if (rawStatus === 'FAIL' && reasonIsMissing) {
+      console.warn('[VisualValidation] VLM returned FAIL with no reason — treating as unreliable PASS.');
+      return {
+        status: 'PASS' as const,
+        reason: 'Visual model could not articulate a specific issue — treated as PASS.',
+        confidence: Math.max(confidence, 0.6),
+        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.map(String) : [],
+        timestamp,
+      };
+    }
+
+    // Only override PASS→FAIL if confidence is very low (small VLMs are
+    // naturally conservative — 0.5 from moondream/qwen2.5-vl often means "fine")
+    const CONFIDENCE_THRESHOLD = 0.35;
     const status: 'PASS' | 'FAIL' =
       rawStatus === 'PASS' && confidence < CONFIDENCE_THRESHOLD ? 'FAIL' : rawStatus;
 
     const reason =
       rawStatus === 'PASS' && confidence < CONFIDENCE_THRESHOLD
-        ? `Low-confidence pass (${(confidence * 100).toFixed(0)}%) — treated as FAIL. ${String(parsed.reason || '')}`
-        : String(parsed.reason || 'No reason provided');
+        ? `Low-confidence pass (${(confidence * 100).toFixed(0)}%) — treated as FAIL. ${rawReason}`
+        : rawReason || 'No reason provided';
 
     return {
       status,

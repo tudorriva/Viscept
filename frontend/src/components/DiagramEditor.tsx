@@ -9,17 +9,27 @@
  *   - Delete selected nodes/edges with Backspace/Delete
  *   - Bidirectional sync: visual changes → code updates
  *   - Minimap, controls, and background grid
+ *
+ * Key design decisions:
+ *   - A monotonic counter (`codeDrivenGenRef`) replaces the boolean `isCodeDriven`
+ *     flag to avoid the race-condition where React Flow's internal dimension
+ *     changes would fire between the two rAF frames.
+ *   - Edges are set in a setTimeout callback *after* nodes so that React Flow
+ *     has measured node dimensions — the root cause of edges not appearing.
+ *   - ReactFlowProvider wrapper enables `useReactFlow().fitView()`.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
   Panel,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   addEdge,
   type Connection,
   type Node,
@@ -31,29 +41,41 @@ import {
   type OnConnect,
   type OnNodesChange,
   type OnEdgesChange,
-  reconnectEdge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Trash2, MousePointer, Maximize2 } from 'lucide-react';
+import { Plus, Trash2, MousePointer } from 'lucide-react';
 import { theme } from '../theme';
 import { customNodeTypes } from './DiagramNodes';
-import { parseDiagramCode, type ParsedDiagram } from '../utils/diagramParser';
+import { parseDiagramCode } from '../utils/diagramParser';
 import { serializeDiagram } from '../utils/diagramSerializer';
+
+// ── Default edge appearance ────────────────────────────────────────────────────
+
+const EDGE_STYLE = { stroke: '#64748b', strokeWidth: 2 };
+const EDGE_MARKER: Edge['markerEnd'] = { type: MarkerType.ArrowClosed, color: '#64748b' };
+const LABEL_STYLE = { fill: '#cbd5e1', fontSize: 11 };
+
+function normalizeEdge(e: Edge): Edge {
+  return {
+    ...e,
+    type: e.type || 'smoothstep',
+    style: { ...EDGE_STYLE, ...(e.style || {}) },
+    markerEnd: e.markerEnd || EDGE_MARKER,
+    labelStyle: LABEL_STYLE,
+  };
+}
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 interface DiagramEditorProps {
-  /** Current diagram code */
   code: string;
-  /** Diagram language: mermaid, dbml, graphviz */
   language: string;
-  /** Callback fired when the visual editor changes the diagram */
   onCodeChange: (newCode: string) => void;
 }
 
-// ── Component ──────────────────────────────────────────────────────────────────
+// ── Inner component (must be inside ReactFlowProvider) ─────────────────────────
 
-export const DiagramEditor: React.FC<DiagramEditorProps> = ({
+const DiagramEditorInner: React.FC<DiagramEditorProps> = ({
   code,
   language,
   onCodeChange,
@@ -61,72 +83,67 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [subType, setSubType] = useState('flowchart');
+  const { fitView } = useReactFlow();
 
-  // Track whether the last change came from code (to avoid infinite loops)
-  const isCodeDriven = useRef(false);
+  // Monotonic generation counter — any changes while !== 0 are suppressed
+  const codeDrivenGenRef = useRef(0);
   const lastCodeRef = useRef(code);
   const serializeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stable label-change callback passed to every node via data.onLabelChange
+  // Stable label-change callback
   const labelChangeRef = useRef<(id: string, label: string) => void>(() => {});
   const stableOnLabelChange = useCallback((nodeId: string, newLabel: string) => {
     labelChangeRef.current(nodeId, newLabel);
   }, []);
 
-  // ── Parse code → nodes/edges (Code → Visual) ────────────────────────────
+  // ── Code → Visual sync ──────────────────────────────────────────────────
 
   useEffect(() => {
-    // Only re-parse if the code actually changed externally
-    if (code === lastCodeRef.current && nodes.length > 0) return;
+    if (code === lastCodeRef.current && nodes.length > 0) return undefined;
     lastCodeRef.current = code;
 
     if (!code.trim()) {
       setNodes([]);
       setEdges([]);
-      return;
+      return undefined;
     }
 
-    isCodeDriven.current = true;
+    const gen = ++codeDrivenGenRef.current;
 
     const parsed = parseDiagramCode(code, language);
     setSubType(parsed.subType || 'flowchart');
 
-    // Inject onLabelChange callback into every node
     const nodesWithCallbacks = parsed.nodes.map((n: Node) => ({
       ...n,
       data: { ...n.data, onLabelChange: stableOnLabelChange },
     }));
+
+    // Step 1: set nodes — React Flow measures them in the next paint
     setNodes(nodesWithCallbacks);
 
-    // Normalize edge styles so they're visible on the dark background
-    const normalizedEdges = parsed.edges.map((e: Edge) => ({
-      ...e,
-      style: { stroke: '#64748b', strokeWidth: 2, ...(e.style || {}) },
-      markerEnd: e.markerEnd || { type: MarkerType.ArrowClosed, color: '#64748b' },
-    }));
-    setEdges(normalizedEdges);
+    // Step 2: set edges *after* nodes are measured
+    const normalizedEdges = parsed.edges.map(normalizeEdge);
+    const timer = setTimeout(() => {
+      setEdges(normalizedEdges);
 
-    // Reset the flag after React Flow has finished measuring nodes and
-    // processing the initial dimension changes.  A single rAF fires too
-    // early — React Flow's internal node measurement also uses rAF, so we
-    // wait two frames to be safe.
-    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        isCodeDriven.current = false;
+        fitView({ padding: 0.3, duration: 200 });
+        if (codeDrivenGenRef.current === gen) {
+          codeDrivenGenRef.current = 0;
+        }
       });
-    });
-  }, [code, language, stableOnLabelChange]);
+    }, 80);
 
-  // ── Serialize nodes/edges → code (Visual → Code) ────────────────────────
+    return () => clearTimeout(timer);
+  }, [code, language, stableOnLabelChange, fitView]);
+
+  // ── Visual → Code serialisation ─────────────────────────────────────────
 
   const emitCodeChange = useCallback(
     (updatedNodes: Node[], updatedEdges: Edge[]) => {
-      if (isCodeDriven.current) return;
+      if (codeDrivenGenRef.current !== 0) return;
 
-      // Debounce serialization to avoid spamming during drag
-      if (serializeTimeout.current) {
-        clearTimeout(serializeTimeout.current);
-      }
+      if (serializeTimeout.current) clearTimeout(serializeTimeout.current);
 
       serializeTimeout.current = setTimeout(() => {
         const newCode = serializeDiagram(updatedNodes, updatedEdges, language, subType);
@@ -136,130 +153,118 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
         }
       }, 300);
     },
-    [language, subType, onCodeChange]
+    [language, subType, onCodeChange],
   );
 
-  // Keep label-change ref in sync with latest emitCodeChange
+  // Keep label-change ref up to date
   useEffect(() => {
     labelChangeRef.current = (nodeId: string, newLabel: string) => {
-      setNodes(nds => nds.map(n =>
-        n.id === nodeId
-          ? { ...n, data: { ...n.data, label: newLabel } }
-          : n
-      ));
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, label: newLabel } } : n,
+        ),
+      );
       requestAnimationFrame(() => {
-        setNodes(current => {
-          setEdges(currEdges => {
-            emitCodeChange(current, currEdges);
-            return currEdges;
+        setNodes((cur) => {
+          setEdges((curEdges) => {
+            emitCodeChange(cur, curEdges);
+            return curEdges;
           });
-          return current;
+          return cur;
         });
       });
     };
   });
 
-  // ── Node change handler ──────────────────────────────────────────────────
+  // ── Node changes ────────────────────────────────────────────────────────
 
   const handleNodesChange: OnNodesChange = useCallback(
     (changes: NodeChange[]) => {
       onNodesChange(changes);
 
-      // Emit code change after position/dimension changes
-      const significantChange = changes.some(
-        (c) => c.type === 'position' || c.type === 'remove' || c.type === 'dimensions'
+      const significant = changes.some(
+        (c) => c.type === 'position' || c.type === 'remove',
       );
-      if (significantChange) {
-        // We need the updated nodes — schedule after state update
+      if (significant) {
         requestAnimationFrame(() => {
-          setNodes((currentNodes) => {
-            setEdges((currentEdges) => {
-              emitCodeChange(currentNodes, currentEdges);
-              return currentEdges;
+          setNodes((cur) => {
+            setEdges((curEdges) => {
+              emitCodeChange(cur, curEdges);
+              return curEdges;
             });
-            return currentNodes;
+            return cur;
           });
         });
       }
     },
-    [onNodesChange, emitCodeChange]
+    [onNodesChange, emitCodeChange],
   );
 
-  // ── Edge change handler ──────────────────────────────────────────────────
+  // ── Edge changes ────────────────────────────────────────────────────────
 
   const handleEdgesChange: OnEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       onEdgesChange(changes);
 
-      const significantChange = changes.some(
-        (c) => c.type === 'remove'
-      );
-      if (significantChange) {
+      if (changes.some((c) => c.type === 'remove')) {
         requestAnimationFrame(() => {
-          setNodes((currentNodes) => {
-            setEdges((currentEdges) => {
-              emitCodeChange(currentNodes, currentEdges);
-              return currentEdges;
+          setNodes((cur) => {
+            setEdges((curEdges) => {
+              emitCodeChange(cur, curEdges);
+              return curEdges;
             });
-            return currentNodes;
+            return cur;
           });
         });
       }
     },
-    [onEdgesChange, emitCodeChange]
+    [onEdgesChange, emitCodeChange],
   );
 
-  // ── Connect handler (draw new edge) ──────────────────────────────────────
+  // ── New connection ──────────────────────────────────────────────────────
 
   const handleConnect: OnConnect = useCallback(
     (connection: Connection) => {
-      const newEdge: Edge = {
+      const newEdge = normalizeEdge({
         ...connection,
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
-        type: 'smoothstep',
-        animated: false,
-        style: { stroke: '#64748b', strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
-      } as Edge;
+      } as Edge);
 
       setEdges((eds) => {
         const updated = addEdge(newEdge, eds);
-        setNodes((currentNodes) => {
-          emitCodeChange(currentNodes, updated);
-          return currentNodes;
+        setNodes((cur) => {
+          emitCodeChange(cur, updated);
+          return cur;
         });
         return updated;
       });
     },
-    [setEdges, emitCodeChange]
+    [setEdges, emitCodeChange],
   );
 
-  // ── Add new node ─────────────────────────────────────────────────────────
+  // ── Add node ────────────────────────────────────────────────────────────
 
   const handleAddNode = useCallback(() => {
     const id = `node_${Date.now()}`;
     const newNode: Node = {
       id,
       type: 'editableNode',
-      position: {
-        x: 100 + Math.random() * 300,
-        y: 100 + Math.random() * 200,
-      },
+      position: { x: 100 + Math.random() * 300, y: 100 + Math.random() * 200 },
       data: { label: 'New Node', onLabelChange: stableOnLabelChange },
       style: { minWidth: 120 },
     };
 
     setNodes((nds) => {
       const updated = [...nds, newNode];
-      setEdges((currentEdges) => {
-        emitCodeChange(updated, currentEdges);
-        return currentEdges;
+      setEdges((curEdges) => {
+        emitCodeChange(updated, curEdges);
+        return curEdges;
       });
       return updated;
     });
-  }, [setNodes, emitCodeChange]);
+  }, [setNodes, emitCodeChange, stableOnLabelChange]);
 
-  // ── Delete selected ──────────────────────────────────────────────────────
+  // ── Delete selected ─────────────────────────────────────────────────────
 
   const handleDeleteSelected = useCallback(() => {
     setNodes((nds) => {
@@ -267,38 +272,42 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
       const removedIds = new Set(nds.filter((n) => n.selected).map((n) => n.id));
 
       setEdges((eds) => {
-        const remainingEdges = eds.filter(
-          (e) => !e.selected && !removedIds.has(e.source) && !removedIds.has(e.target)
+        const rem = eds.filter(
+          (e) => !e.selected && !removedIds.has(e.source) && !removedIds.has(e.target),
         );
-        emitCodeChange(remaining, remainingEdges);
-        return remainingEdges;
+        emitCodeChange(remaining, rem);
+        return rem;
       });
 
       return remaining;
     });
   }, [setNodes, setEdges, emitCodeChange]);
 
-  // ── Keyboard shortcuts ───────────────────────────────────────────────────
+  // ── Keyboard ────────────────────────────────────────────────────────────
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Only delete if not editing an input
-        if ((e.target as HTMLElement).tagName !== 'INPUT') {
-          handleDeleteSelected();
-        }
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        (e.target as HTMLElement).tagName !== 'INPUT'
+      ) {
+        handleDeleteSelected();
       }
     },
-    [handleDeleteSelected]
+    [handleDeleteSelected],
   );
 
-  // ── Fit view on first render ─────────────────────────────────────────────
-
-  const defaultViewport = useMemo(() => ({ x: 0, y: 0, zoom: 0.85 }), []);
-
-  // ── Custom styles ────────────────────────────────────────────────────────
-
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
+
+  const defaultEdgeOptions = useMemo(
+    () => ({
+      type: 'smoothstep' as const,
+      animated: false,
+      style: EDGE_STYLE,
+      markerEnd: EDGE_MARKER,
+    }),
+    [],
+  );
 
   return (
     <div
@@ -314,7 +323,6 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
         nodeTypes={customNodeTypes}
-        defaultViewport={defaultViewport}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         snapToGrid
@@ -323,14 +331,8 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
         multiSelectionKeyCode="Shift"
         proOptions={proOptions}
         style={{ backgroundColor: theme.colors.bg.primary }}
-        defaultEdgeOptions={{
-          type: 'smoothstep',
-          animated: false,
-          style: { stroke: '#64748b', strokeWidth: 2 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
-        }}
+        defaultEdgeOptions={defaultEdgeOptions}
       >
-        {/* Background grid */}
         <Background
           variant={BackgroundVariant.Dots}
           gap={20}
@@ -338,7 +340,6 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
           color={theme.colors.border.medium}
         />
 
-        {/* Controls */}
         <Controls
           style={{
             button: {
@@ -350,7 +351,6 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
           } as any}
         />
 
-        {/* Minimap */}
         <MiniMap
           style={{
             backgroundColor: theme.colors.bg.secondary,
@@ -363,7 +363,7 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
           maskColor={`${theme.colors.bg.primary}90`}
         />
 
-        {/* Toolbar Panel */}
+        {/* Toolbar */}
         <Panel position="top-right">
           <div
             className="flex items-center gap-1.5 p-1.5 rounded-lg shadow-lg"
@@ -379,7 +379,7 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
                 backgroundColor: theme.colors.bg.tertiary,
                 color: theme.colors.accent.primary,
               }}
-              title="Add Node (click to place)"
+              title="Add Node"
             >
               <Plus size={16} />
             </button>
@@ -397,7 +397,7 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
           </div>
         </Panel>
 
-        {/* Info Panel */}
+        {/* Info bar */}
         <Panel position="bottom-left">
           <div
             className="flex items-center gap-3 text-xs px-3 py-1.5 rounded-lg"
@@ -421,3 +421,11 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
     </div>
   );
 };
+
+// ── Public wrapper (provides ReactFlowProvider) ────────────────────────────────
+
+export const DiagramEditor: React.FC<DiagramEditorProps> = (props) => (
+  <ReactFlowProvider>
+    <DiagramEditorInner {...props} />
+  </ReactFlowProvider>
+);

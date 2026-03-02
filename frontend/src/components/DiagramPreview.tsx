@@ -15,13 +15,16 @@ interface DiagramPreviewProps {
   prompt?: string;
 }
 
-/** Estimate generation time in seconds based on prompt length and language complexity */
+/** Estimate generation time in seconds based on prompt length and language complexity.
+ *  Accounts for local Ollama inference speed (CPU / modest GPU). */
 function estimateGenerationTime(prompt: string, language: string): number {
-  const baseTime = 5; // minimum seconds
-  const perWordTime = 0.4;
+  const baseTime = 20; // minimum seconds (model load + first token)
+  const perWordTime = 0.8; // per-word generation cost
   const wordCount = prompt.trim().split(/\s+/).length;
-  const langMultiplier = language === 'graphviz' ? 1.3 : language === 'dbml' ? 1.2 : 1.0;
-  return Math.round((baseTime + wordCount * perWordTime) * langMultiplier);
+  // Complex prompts with enumerated items take proportionally longer
+  const complexityBonus = (prompt.match(/[\d]+\.|[-•*]/g) || []).length * 2;
+  const langMultiplier = language === 'graphviz' ? 1.4 : language === 'dbml' ? 1.5 : 1.0;
+  return Math.round((baseTime + wordCount * perWordTime + complexityBonus) * langMultiplier);
 }
 
 export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false, prompt = '' }) => {
@@ -199,56 +202,142 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
 
   const convertDBMLToMermaid = (dbml: string): string => {
     const lines = ['erDiagram'];
-    const tables = dbml.match(/Table\s+(\w+)\s*\{([^}]*)\}/gi) || [];
+    const tableNames: string[] = [];
+    const tableFields = new Map<string, string[]>(); // tableName → field lines
     const refs: string[] = [];
+
+    // ── 1. Parse all Table blocks ──────────────────────────────────────────
+
+    const tables = dbml.match(/Table\s+(\w+)\s*\{([^}]*)\}/gi) || [];
 
     for (const table of tables) {
       const nameMatch = table.match(/Table\s+(\w+)/i);
       if (!nameMatch) continue;
       const tableName = nameMatch[1];
+      tableNames.push(tableName);
 
       const bodyMatch = table.match(/\{([^}]*)\}/);
-      if (bodyMatch) {
-        const fields = bodyMatch[1]
-          .split('\n')
-          .map((f) => f.trim())
-          .filter((f) => f && !f.startsWith('//') && !f.startsWith('indexes'));
+      if (!bodyMatch) continue;
 
-        lines.push(`  ${tableName} {`);
-        for (const field of fields) {
-          if (/^\(/.test(field) || /^primary\b/i.test(field) || /^unique\b/i.test(field)) continue;
-          const clean = field.replace(/\[.*?\]/g, '').trim();
-          if (!clean) continue;
-          const parts = clean.split(/\s+/);
-          if (parts.length >= 2) {
-            const fName = parts[0].replace(/[^a-zA-Z0-9_]/g, '');
-            const fType = parts[1].replace(/[(),]/g, '_').replace(/_+/g, '_').replace(/_$/g, '').replace(/[^a-zA-Z0-9_]/g, '');
-            if (fName && fType) lines.push(`    ${fType} ${fName}`);
-          }
+      const fieldLines: string[] = [];
+      const rawFields = bodyMatch[1]
+        .split('\n')
+        .map((f) => f.trim())
+        .filter((f) => f && !f.startsWith('//') && !f.startsWith('indexes') && !f.startsWith('Note'));
 
-          // Inline refs
-          const refMatch = field.match(/\[ref:\s*[><-]\s*(\w+)\.(\w+)\]/i);
-          if (refMatch) {
-            refs.push(`  ${tableName} ||--o{ ${refMatch[1]} : "references"`);
+      lines.push(`  ${tableName} {`);
+      for (const field of rawFields) {
+        // Skip index/constraint-only lines
+        if (/^\(/.test(field) || /^primary\b/i.test(field) || /^unique\b/i.test(field)) continue;
+
+        // Extract field attributes before cleaning
+        const isPK = /\[.*pk.*\]/i.test(field) || /\[.*primary\s*key.*\]/i.test(field);
+        const isFK = /\[.*ref.*\]/i.test(field);
+
+        // Clean the field text
+        const clean = field.replace(/\[.*?\]/g, '').trim();
+        if (!clean) continue;
+        const parts = clean.split(/\s+/);
+        if (parts.length >= 2) {
+          const fName = parts[0].replace(/[^a-zA-Z0-9_]/g, '');
+          const fType = parts[1].replace(/[(),]/g, '_').replace(/_+/g, '_').replace(/_$/g, '').replace(/[^a-zA-Z0-9_]/g, '');
+          if (fName && fType) {
+            // Add PK/FK markers for Mermaid ER
+            const marker = isPK ? ' PK' : isFK ? ' FK' : '';
+            lines.push(`    ${fType} ${fName}${marker}`);
           }
         }
-        lines.push('  }');
+
+        fieldLines.push(field);
+
+        // Inline refs: [ref: > users.id] or [ref: < orders.product_id]
+        const refMatch = field.match(/\[ref:\s*([><-])\s*(\w+)\.(\w+)\]/i);
+        if (refMatch) {
+          const [, dir, refTable] = refMatch;
+          if (dir === '>') {
+            refs.push(`  ${tableName} }o--|| ${refTable} : "references"`);
+          } else if (dir === '<') {
+            refs.push(`  ${refTable} }o--|| ${tableName} : "references"`);
+          } else {
+            refs.push(`  ${tableName} ||--|| ${refTable} : "references"`);
+          }
+        }
       }
+      lines.push('  }');
+      tableFields.set(tableName.toLowerCase(), fieldLines);
     }
 
-    // Standalone Ref declarations
-    const standaloneRefs = dbml.match(/Ref\s*:\s*(\w+)\.(\w+)\s*[<>-]+\s*(\w+)\.(\w+)/gi) || [];
+    // ── 2. Standalone Ref declarations ─────────────────────────────────────
+
+    // Single-line: Ref: posts.user_id > users.id
+    const standaloneRefs = dbml.match(/Ref[^{]*:\s*(\w+)\.(\w+)\s*[<>-]+\s*(\w+)\.(\w+)/gi) || [];
     for (const ref of standaloneRefs) {
-      const m = ref.match(/Ref\s*:\s*(\w+)\.\w+\s*([<>-]+)\s*(\w+)\.\w+/i);
+      const m = ref.match(/(\w+)\.\w+\s*([<>-]+)\s*(\w+)\.\w+/i);
       if (m) {
         const [, left, dir, right] = m;
-        if (dir.includes('>')) refs.push(`  ${left} ||--o{ ${right} : "references"`);
-        else if (dir.includes('<')) refs.push(`  ${right} ||--o{ ${left} : "references"`);
+        if (dir.includes('>')) refs.push(`  ${left} }o--|| ${right} : "references"`);
+        else if (dir.includes('<')) refs.push(`  ${right} }o--|| ${left} : "references"`);
         else refs.push(`  ${left} ||--|| ${right} : "references"`);
       }
     }
 
-    // Deduplicate refs
+    // Multi-line Ref blocks: Ref { posts.user_id > users.id }
+    const refBlocks = dbml.match(/Ref\s*(?:\w+\s*)?\{([^}]*)\}/gi) || [];
+    for (const block of refBlocks) {
+      const bodyMatch = block.match(/\{([^}]*)\}/);
+      if (!bodyMatch) continue;
+      const refLines = bodyMatch[1].split('\n').map((l) => l.trim()).filter(Boolean);
+      for (const rl of refLines) {
+        const m = rl.match(/(\w+)\.(\w+)\s*([<>-]+)\s*(\w+)\.(\w+)/);
+        if (m) {
+          const [, left, , dir, right] = m;
+          if (dir.includes('>')) refs.push(`  ${left} }o--|| ${right} : "references"`);
+          else if (dir.includes('<')) refs.push(`  ${right} }o--|| ${left} : "references"`);
+          else refs.push(`  ${left} ||--|| ${right} : "references"`);
+        }
+      }
+    }
+
+    // ── 3. Infer relationships from _id / _fk naming convention ────────────
+
+    const lowerTableNames = tableNames.map((t) => t.toLowerCase());
+    for (const tableName of tableNames) {
+      const fields = tableFields.get(tableName.toLowerCase()) || [];
+      for (const field of fields) {
+        const clean = field.replace(/\[.*?\]/g, '').trim();
+        const parts = clean.split(/\s+/);
+        if (parts.length < 2) continue;
+        const fName = parts[0].toLowerCase();
+
+        // Already has an explicit ref? skip
+        if (/\[ref:/i.test(field)) continue;
+
+        // Pattern: ends with _id or _fk, e.g. user_id → users / user
+        const fkMatch = fName.match(/^(\w+?)_(?:id|fk)$/);
+        if (fkMatch) {
+          const baseName = fkMatch[1];
+          // Try to find a matching table: "users" or "user"
+          const targetIdx = lowerTableNames.findIndex(
+            (t) => t === baseName || t === baseName + 's' || t + 's' === baseName
+          );
+          if (targetIdx !== -1) {
+            const targetTable = tableNames[targetIdx];
+            // Only add if this ref pair doesn't already exist
+            const key = `${tableName}|${targetTable}`;
+            const reverseKey = `${targetTable}|${tableName}`;
+            const alreadyExists = refs.some(
+              (r) => (r.includes(tableName) && r.includes(targetTable))
+            );
+            if (!alreadyExists) {
+              refs.push(`  ${tableName} }o--|| ${targetTable} : "${fName}"`);
+            }
+          }
+        }
+      }
+    }
+
+    // ── 4. Deduplicate and add refs ────────────────────────────────────────
+
     for (const ref of [...new Set(refs)]) {
       lines.push(ref);
     }
@@ -443,15 +532,15 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
         {isGenerating && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5"
             style={{ backgroundColor: `${theme.colors.bg.primary}e6` }}>
-            {/* Animated spinner — explicit inline animation to guarantee it works */}
-            <div className="relative">
-              <svg width="64" height="64" viewBox="0 0 64 64" style={{ animation: 'spin 1s linear infinite' }}>
+            {/* Animated spinner — Tailwind animate-spin on wrapper div */}
+            <div className="animate-spin" style={{ width: 64, height: 64 }}>
+              <svg width="64" height="64" viewBox="0 0 64 64">
                 <circle cx="32" cy="32" r="28" fill="none" stroke={theme.colors.border.medium} strokeWidth="4" opacity="0.2" />
                 <circle
                   cx="32" cy="32" r="28" fill="none"
                   strokeWidth="4" strokeLinecap="round"
                   stroke={`url(#spinner-gradient)`}
-                  strokeDasharray="120 60"
+                  strokeDasharray="90 90"
                 />
                 <defs>
                   <linearGradient id="spinner-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
