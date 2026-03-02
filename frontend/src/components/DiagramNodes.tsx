@@ -1,13 +1,31 @@
 /**
  * Custom React Flow node types for the interactive diagram editor.
  *
- * - TableNode: renders a table/class with fields and methods (used for
- *   classDiagram, erDiagram, and DBML Table definitions).
+ * - TableNode: renders a table/class with fields (classDiagram, erDiagram, DBML).
+ * - EditableNode: simple labelled node with double-click inline editing.
+ *
+ * Both node types persist label changes by calling `data.onLabelChange(id, newLabel)`.
  */
 
-import React, { memo, useCallback, useState } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { theme } from '../theme';
+
+// ── Shared handle styles ───────────────────────────────────────────────────────
+
+const targetHandleStyle = {
+  width: 8,
+  height: 8,
+  border: `2px solid ${theme.colors.bg.primary}`,
+  background: theme.colors.accent.primary,
+};
+
+const sourceHandleStyle = {
+  width: 8,
+  height: 8,
+  border: `2px solid ${theme.colors.bg.primary}`,
+  background: theme.colors.accent.secondary,
+};
 
 // ── TableNode ──────────────────────────────────────────────────────────────────
 
@@ -15,27 +33,34 @@ interface TableNodeData {
   label: string;
   fields?: string[];
   methods?: string[];
+  onLabelChange?: (id: string, label: string) => void;
   [key: string]: unknown;
 }
 
-/**
- * A table/class node with a header, fields section, and methods section.
- * Supports inline editing of the label.
- */
-export const TableNode = memo(({ data, selected }: NodeProps) => {
+export const TableNode = memo(({ id, data, selected }: NodeProps) => {
   const { label, fields = [], methods = [] } = data as TableNodeData;
+  const onLabelChange = (data as TableNodeData).onLabelChange;
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(String(label));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isEditing) setEditLabel(String(label));
+  }, [label, isEditing]);
 
   const handleDoubleClick = useCallback(() => {
     setIsEditing(true);
     setEditLabel(String(label));
+    setTimeout(() => inputRef.current?.select(), 0);
   }, [label]);
 
-  const handleBlur = useCallback(() => {
+  const handleSave = useCallback(() => {
     setIsEditing(false);
-    // The label update is handled through onNodeChange in the parent
-  }, []);
+    const trimmed = editLabel.trim();
+    if (trimmed && trimmed !== String(label) && onLabelChange) {
+      onLabelChange(id, trimmed);
+    }
+  }, [editLabel, label, id, onLabelChange]);
 
   return (
     <div
@@ -45,19 +70,11 @@ export const TableNode = memo(({ data, selected }: NodeProps) => {
         backgroundColor: theme.colors.bg.secondary,
         border: `2px solid ${selected ? theme.colors.accent.primary : theme.colors.border.medium}`,
         transition: 'border-color 0.15s ease',
+        boxShadow: selected ? `0 0 12px ${theme.colors.accent.primary}40` : 'none',
       }}
     >
-      {/* Connection handle - top */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        style={{
-          background: theme.colors.accent.primary,
-          width: 10,
-          height: 10,
-          border: `2px solid ${theme.colors.bg.primary}`,
-        }}
-      />
+      <Handle type="target" position={Position.Top} id="top" style={targetHandleStyle} />
+      <Handle type="target" position={Position.Left} id="left" style={targetHandleStyle} />
 
       {/* Header */}
       <div
@@ -71,13 +88,18 @@ export const TableNode = memo(({ data, selected }: NodeProps) => {
       >
         {isEditing ? (
           <input
+            ref={inputRef}
             autoFocus
             value={editLabel}
             onChange={(e) => setEditLabel(e.target.value)}
-            onBlur={handleBlur}
-            onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+            onBlur={handleSave}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave();
+              if (e.key === 'Escape') { setIsEditing(false); setEditLabel(String(label)); }
+            }}
             className="w-full text-center bg-transparent outline-none text-xs font-bold"
             style={{ color: theme.colors.text.primary }}
+            onClick={(e) => e.stopPropagation()}
           />
         ) : (
           String(label)
@@ -85,12 +107,12 @@ export const TableNode = memo(({ data, selected }: NodeProps) => {
       </div>
 
       {/* Fields */}
-      {fields.length > 0 && (
+      {(fields as string[]).length > 0 && (
         <div
           className="px-3 py-1.5"
-          style={{ borderBottom: methods.length > 0 ? `1px solid ${theme.colors.border.medium}` : 'none' }}
+          style={{ borderBottom: (methods as string[]).length > 0 ? `1px solid ${theme.colors.border.medium}` : 'none' }}
         >
-          {fields.map((f: string, i: number) => (
+          {(fields as string[]).map((f: string, i: number) => (
             <div
               key={i}
               className="text-xs py-0.5 font-mono truncate"
@@ -104,13 +126,13 @@ export const TableNode = memo(({ data, selected }: NodeProps) => {
       )}
 
       {/* Methods */}
-      {methods.length > 0 && (
+      {(methods as string[]).length > 0 && (
         <div className="px-3 py-1.5">
-          {methods.map((m: string, i: number) => (
+          {(methods as string[]).map((m: string, i: number) => (
             <div
               key={i}
               className="text-xs py-0.5 font-mono truncate"
-              style={{ color: theme.colors.accent.tertiary }}
+              style={{ color: theme.colors.text.tertiary }}
               title={m}
             >
               {m}
@@ -120,28 +142,16 @@ export const TableNode = memo(({ data, selected }: NodeProps) => {
       )}
 
       {/* Empty state */}
-      {fields.length === 0 && methods.length === 0 && (
+      {(fields as string[]).length === 0 && (methods as string[]).length === 0 && (
         <div className="px-3 py-2">
-          <div
-            className="text-xs italic text-center"
-            style={{ color: theme.colors.text.muted }}
-          >
+          <div className="text-xs italic text-center" style={{ color: theme.colors.text.tertiary }}>
             Double-click to edit
           </div>
         </div>
       )}
 
-      {/* Connection handle - bottom */}
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        style={{
-          background: theme.colors.accent.secondary,
-          width: 10,
-          height: 10,
-          border: `2px solid ${theme.colors.bg.primary}`,
-        }}
-      />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={sourceHandleStyle} />
+      <Handle type="source" position={Position.Right} id="right" style={sourceHandleStyle} />
     </div>
   );
 });
@@ -150,75 +160,69 @@ TableNode.displayName = 'TableNode';
 
 // ── EditableNode ───────────────────────────────────────────────────────────────
 
-/**
- * A simple editable node with a label. Used as the default node type in the
- * visual editor. Supports double-click to edit.
- */
-export const EditableNode = memo(({ data, selected }: NodeProps) => {
+export const EditableNode = memo(({ id, data, selected }: NodeProps) => {
   const label = String(data?.label || '');
+  const onLabelChange = data?.onLabelChange as ((id: string, label: string) => void) | undefined;
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(label);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isEditing) setEditLabel(label);
+  }, [label, isEditing]);
 
   const handleDoubleClick = useCallback(() => {
     setIsEditing(true);
     setEditLabel(label);
+    setTimeout(() => inputRef.current?.select(), 0);
   }, [label]);
 
-  const handleBlur = useCallback(() => {
+  const handleSave = useCallback(() => {
     setIsEditing(false);
-  }, []);
+    const trimmed = editLabel.trim();
+    if (trimmed && trimmed !== label && onLabelChange) {
+      onLabelChange(id, trimmed);
+    }
+  }, [editLabel, label, id, onLabelChange]);
 
   return (
     <div
       className="rounded-lg px-4 py-2.5 shadow-md"
       style={{
-        minWidth: 100,
+        minWidth: 120,
         backgroundColor: theme.colors.bg.tertiary,
         border: `2px solid ${selected ? theme.colors.accent.primary : theme.colors.border.medium}`,
-        transition: 'border-color 0.15s ease',
+        transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+        boxShadow: selected ? `0 0 12px ${theme.colors.accent.primary}40` : 'none',
       }}
       onDoubleClick={handleDoubleClick}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        style={{
-          background: theme.colors.accent.primary,
-          width: 8,
-          height: 8,
-          border: `2px solid ${theme.colors.bg.primary}`,
-        }}
-      />
+      <Handle type="target" position={Position.Top} id="top" style={targetHandleStyle} />
+      <Handle type="target" position={Position.Left} id="left" style={targetHandleStyle} />
 
       {isEditing ? (
         <input
+          ref={inputRef}
           autoFocus
           value={editLabel}
           onChange={(e) => setEditLabel(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') { setIsEditing(false); setEditLabel(label); }
+          }}
           className="w-full text-center bg-transparent outline-none text-sm font-medium"
-          style={{ color: theme.colors.text.primary }}
+          style={{ color: theme.colors.text.primary, minWidth: 60 }}
+          onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <div
-          className="text-sm font-medium text-center"
-          style={{ color: theme.colors.text.primary }}
-        >
+        <div className="text-sm font-medium text-center" style={{ color: theme.colors.text.primary }}>
           {label}
         </div>
       )}
 
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        style={{
-          background: theme.colors.accent.secondary,
-          width: 8,
-          height: 8,
-          border: `2px solid ${theme.colors.bg.primary}`,
-        }}
-      />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={sourceHandleStyle} />
+      <Handle type="source" position={Position.Right} id="right" style={sourceHandleStyle} />
     </div>
   );
 });

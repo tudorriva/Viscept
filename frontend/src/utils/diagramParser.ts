@@ -55,7 +55,7 @@ function autoLayout(
     const row = Math.floor(i / cols);
 
     // Determine the node type based on whether it has fields
-    let nodeType = 'default';
+    let nodeType = 'editableNode';
     let data: Record<string, unknown> = { label: rn.label };
 
     if (rn.fields && rn.fields.length > 0) {
@@ -208,10 +208,13 @@ function parseMermaidFlowchart(lines: string[]): ParsedDiagram {
     id: `e-${re.source}-${re.target}-${i}`,
     source: re.source,
     target: re.target,
+    sourceHandle: 'bottom',
+    targetHandle: 'top',
     label: re.label,
     type: 'smoothstep',
     animated: re.type === 'dashed',
-    style: { stroke: '#64748b' },
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   }));
 
@@ -307,10 +310,13 @@ function parseMermaidClass(lines: string[]): ParsedDiagram {
     id: `e-${re.source}-${re.target}-${i}`,
     source: re.source,
     target: re.target,
+    sourceHandle: 'bottom',
+    targetHandle: 'top',
     label: re.label,
     type: 'smoothstep',
     animated: re.type === 'dashed',
-    style: { stroke: '#64748b' },
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   }));
 
@@ -373,9 +379,12 @@ function parseMermaidER(lines: string[]): ParsedDiagram {
     id: `e-${re.source}-${re.target}-${i}`,
     source: re.source,
     target: re.target,
+    sourceHandle: 'bottom',
+    targetHandle: 'top',
     label: re.label,
     type: 'smoothstep',
-    style: { stroke: '#64748b' },
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   }));
 
@@ -429,7 +438,7 @@ function parseMermaidSequence(lines: string[]): ParsedDiagram {
   // Lay out sequence participants horizontally
   const nodes: Node[] = rawNodes.map((rn, i) => ({
     id: rn.id,
-    type: 'default',
+    type: 'editableNode',
     position: { x: 60 + i * 250, y: 80 },
     data: { label: rn.label },
     style: { minWidth: 120 },
@@ -439,10 +448,13 @@ function parseMermaidSequence(lines: string[]): ParsedDiagram {
     id: `e-${re.source}-${re.target}-${i}`,
     source: re.source,
     target: re.target,
+    sourceHandle: 'right',
+    targetHandle: 'left',
     label: re.label,
     type: 'smoothstep',
     animated: re.type === 'dashed',
-    style: { stroke: '#64748b' },
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   }));
 
@@ -484,9 +496,12 @@ function parseMermaidState(lines: string[]): ParsedDiagram {
     id: `e-${re.source}-${re.target}-${i}`,
     source: re.source,
     target: re.target,
+    sourceHandle: 'bottom',
+    targetHandle: 'top',
     label: re.label,
     type: 'smoothstep',
-    style: { stroke: '#64748b' },
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   }));
 
@@ -557,9 +572,12 @@ function parseDBML(code: string): ParsedDiagram {
     id: `e-${re.source}-${re.target}-${i}`,
     source: re.source,
     target: re.target,
+    sourceHandle: 'bottom',
+    targetHandle: 'top',
     label: re.label,
     type: 'smoothstep',
-    style: { stroke: '#64748b' },
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   }));
 
@@ -632,9 +650,12 @@ function parseGraphviz(code: string): ParsedDiagram {
     id: `e-${re.source}-${re.target}-${i}`,
     source: re.source,
     target: re.target,
+    sourceHandle: 'bottom',
+    targetHandle: 'top',
     label: re.label,
     type: 'smoothstep',
-    style: { stroke: '#64748b' },
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   }));
 

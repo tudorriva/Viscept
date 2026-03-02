@@ -195,6 +195,19 @@ async function renderDBML(code: string): Promise<RenderResult> {
 }
 
 /**
+ * Sanitise a DBML type (e.g. `decimal(10,2)`, `varchar(255)`) into a token
+ * that Mermaid's erDiagram parser will accept (letters, digits, underscores).
+ */
+function sanitiseType(raw: string): string {
+  // "decimal(10,2)" → "decimal_10_2", "varchar(255)" → "varchar_255"
+  return raw
+    .replace(/[(),]/g, '_') // replace parens/commas with underscores
+    .replace(/_+/g, '_')    // collapse runs
+    .replace(/_$/g, '')     // trim trailing underscore
+    .replace(/[^a-zA-Z0-9_]/g, ''); // strip anything else non-alphanumeric
+}
+
+/**
  * Convert DBML code to Mermaid erDiagram syntax for rendering.
  */
 function convertDBMLToMermaidER(dbml: string): string {
@@ -217,18 +230,27 @@ function convertDBMLToMermaidER(dbml: string): string {
       const fields = body
         .split('\n')
         .map((f) => f.trim())
-        .filter((f) => f && !f.startsWith('//'));
+        .filter((f) => f && !f.startsWith('//') && !f.startsWith('indexes'));
 
       lines.push(`  ${tableName} {`);
       for (const field of fields) {
-        const parts = field.split(/\s+/);
+        // Skip lines that are purely index/constraint blocks
+        if (/^\(/.test(field) || /^primary\b/i.test(field) || /^unique\b/i.test(field)) continue;
+
+        // Strip inline annotations like [pk], [not null], [ref: ...] before splitting
+        const clean = field.replace(/\[.*?\]/g, '').trim();
+        if (!clean) continue;
+
+        const parts = clean.split(/\s+/);
         if (parts.length >= 2) {
-          const fieldName = parts[0];
-          const fieldType = parts[1];
-          lines.push(`    ${fieldType} ${fieldName}`);
+          const fieldName = parts[0].replace(/[^a-zA-Z0-9_]/g, '');
+          const fieldType = sanitiseType(parts[1]);
+          if (fieldName && fieldType) {
+            lines.push(`    ${fieldType} ${fieldName}`);
+          }
         }
 
-        // Extract references
+        // Extract references from the original (unsanitised) line
         const refMatch = field.match(/\[ref:\s*[><-]\s*(\w+)\.(\w+)\]/i);
         if (refMatch) {
           refs.push(`  ${tableName} ||--o{ ${refMatch[1]} : "references"`);
@@ -238,8 +260,25 @@ function convertDBMLToMermaidER(dbml: string): string {
     }
   }
 
-  // Add references
-  for (const ref of refs) {
+  // Also parse standalone Ref declarations: Ref: table1.col > table2.col
+  const standaloneRefs = dbml.match(/Ref\s*:\s*(\w+)\.(\w+)\s*[<>-]+\s*(\w+)\.(\w+)/gi) || [];
+  for (const ref of standaloneRefs) {
+    const m = ref.match(/Ref\s*:\s*(\w+)\.\w+\s*([<>-]+)\s*(\w+)\.\w+/i);
+    if (m) {
+      const [, left, dir, right] = m;
+      if (dir.includes('>')) {
+        refs.push(`  ${left} ||--o{ ${right} : "references"`);
+      } else if (dir.includes('<')) {
+        refs.push(`  ${right} ||--o{ ${left} : "references"`);
+      } else {
+        refs.push(`  ${left} ||--|| ${right} : "references"`);
+      }
+    }
+  }
+
+  // Deduplicate refs
+  const uniqueRefs = [...new Set(refs)];
+  for (const ref of uniqueRefs) {
     lines.push(ref);
   }
 

@@ -67,6 +67,12 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
   const lastCodeRef = useRef(code);
   const serializeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Stable label-change callback passed to every node via data.onLabelChange
+  const labelChangeRef = useRef<(id: string, label: string) => void>(() => {});
+  const stableOnLabelChange = useCallback((nodeId: string, newLabel: string) => {
+    labelChangeRef.current(nodeId, newLabel);
+  }, []);
+
   // ── Parse code → nodes/edges (Code → Visual) ────────────────────────────
 
   useEffect(() => {
@@ -84,14 +90,27 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
 
     const parsed = parseDiagramCode(code, language);
     setSubType(parsed.subType || 'flowchart');
-    setNodes(parsed.nodes);
-    setEdges(parsed.edges);
+
+    // Inject onLabelChange callback into every node
+    const nodesWithCallbacks = parsed.nodes.map((n: Node) => ({
+      ...n,
+      data: { ...n.data, onLabelChange: stableOnLabelChange },
+    }));
+    setNodes(nodesWithCallbacks);
+
+    // Normalize edge styles so they're visible on the dark background
+    const normalizedEdges = parsed.edges.map((e: Edge) => ({
+      ...e,
+      style: { stroke: '#64748b', strokeWidth: 2, ...(e.style || {}) },
+      markerEnd: e.markerEnd || { type: MarkerType.ArrowClosed, color: '#64748b' },
+    }));
+    setEdges(normalizedEdges);
 
     // Reset the flag after a tick
     requestAnimationFrame(() => {
       isCodeDriven.current = false;
     });
-  }, [code, language]);
+  }, [code, language, stableOnLabelChange]);
 
   // ── Serialize nodes/edges → code (Visual → Code) ────────────────────────
 
@@ -114,6 +133,26 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
     },
     [language, subType, onCodeChange]
   );
+
+  // Keep label-change ref in sync with latest emitCodeChange
+  useEffect(() => {
+    labelChangeRef.current = (nodeId: string, newLabel: string) => {
+      setNodes(nds => nds.map(n =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, label: newLabel } }
+          : n
+      ));
+      requestAnimationFrame(() => {
+        setNodes(current => {
+          setEdges(currEdges => {
+            emitCodeChange(current, currEdges);
+            return currEdges;
+          });
+          return current;
+        });
+      });
+    };
+  });
 
   // ── Node change handler ──────────────────────────────────────────────────
 
@@ -174,7 +213,7 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
         type: 'smoothstep',
         animated: false,
-        style: { stroke: '#64748b' },
+        style: { stroke: '#64748b', strokeWidth: 2 },
         markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
       } as Edge;
 
@@ -201,7 +240,7 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
         x: 100 + Math.random() * 300,
         y: 100 + Math.random() * 200,
       },
-      data: { label: `New Node` },
+      data: { label: 'New Node', onLabelChange: stableOnLabelChange },
       style: { minWidth: 120 },
     };
 

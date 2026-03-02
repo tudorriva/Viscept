@@ -239,11 +239,11 @@ export const App: React.FC = () => {
   }, [diagramType]);
 
   const handleCreateProject = useCallback(
-    (name: string, type: DiagramType) => {
-      const project = createProject(name, type, '', '');
+    (name: string, type?: DiagramType) => {
+      const project = createProject(name, type ?? diagramType, '', '');
       openProject(project.id);
     },
-    [createProject, openProject]
+    [createProject, openProject, diagramType]
   );
 
   const handleSelectExample = useCallback(
@@ -300,7 +300,7 @@ export const App: React.FC = () => {
           onCreateProject={handleCreateProject}
           onDeleteProject={deleteProject}
           onToggleFavorite={toggleFavorite}
-          onDuplicate={(id) => {
+          onDuplicateProject={(id) => {
             const copy = duplicateProject(id);
             if (copy) openProject(copy.id);
           }}

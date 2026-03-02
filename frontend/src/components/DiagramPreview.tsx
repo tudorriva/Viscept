@@ -19,6 +19,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [editorMode, setEditorMode] = useState<'preview' | 'editor'>('preview');
+  const [renderKey, setRenderKey] = useState(0);
 
   // Zoom / Pan state
   const [zoom, setZoom] = useState(1);
@@ -26,36 +27,57 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
   const panOffset = useRef({ x: 0, y: 0 });
+  const renderIdRef = useRef(0);
+  const svgNaturalSize = useRef({ width: 0, height: 0 });
 
-  // Reset zoom/pan when code changes
-  useEffect(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, [code, language]);
+  /** Measure SVG natural size, preserve viewBox, and auto-fit within the viewport. */
+  const autoFitSvg = useCallback(() => {
+    const svgEl = containerRef.current?.querySelector('svg');
+    if (!svgEl || !viewportRef.current) return;
 
-  /** After inserting SVG, make it scale-friendly — preserve viewBox but remove fixed dimensions. */
-  const fixSvgSize = () => {
-    if (!containerRef.current) return;
-    const svgEl = containerRef.current.querySelector('svg');
-    if (svgEl) {
-      // Ensure the SVG has a viewBox so it can scale
-      if (!svgEl.getAttribute('viewBox')) {
-        const w = svgEl.getAttribute('width') || svgEl.getBoundingClientRect().width;
-        const h = svgEl.getAttribute('height') || svgEl.getBoundingClientRect().height;
-        if (w && h) {
-          svgEl.setAttribute('viewBox', `0 0 ${parseFloat(String(w))} ${parseFloat(String(h))}`);
-        }
+    // Get natural dimensions from SVG attributes
+    let w = parseFloat(svgEl.getAttribute('width') || '0');
+    let h = parseFloat(svgEl.getAttribute('height') || '0');
+    if (!w) w = parseFloat(svgEl.style.width) || 0;
+    if (!h) h = parseFloat(svgEl.style.height) || 0;
+    if (!w || !h) {
+      try {
+        const bbox = svgEl.getBBox();
+        w = bbox.x + bbox.width + 10;
+        h = bbox.y + bbox.height + 10;
+      } catch {
+        w = 800; h = 600;
       }
-      svgEl.removeAttribute('height');
-      svgEl.removeAttribute('width');
-      svgEl.removeAttribute('style');
-      svgEl.style.width = '100%';
-      svgEl.style.height = 'auto';
-      svgEl.style.maxWidth = '100%';
-      svgEl.style.display = 'block';
-      svgEl.style.overflow = 'visible';
     }
-  };
+
+    svgNaturalSize.current = { width: w, height: h };
+
+    // Ensure viewBox exists
+    if (!svgEl.getAttribute('viewBox')) {
+      svgEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    }
+
+    // Keep natural pixel dimensions
+    svgEl.setAttribute('width', String(w));
+    svgEl.setAttribute('height', String(h));
+    svgEl.removeAttribute('style');
+    svgEl.style.display = 'block';
+    svgEl.style.overflow = 'visible';
+
+    // Calculate zoom to fit within viewport
+    const vw = viewportRef.current.clientWidth;
+    const vh = viewportRef.current.clientHeight;
+    const PAD = 48;
+    const fitZoom = Math.max(0.05, Math.min((vw - PAD) / w, (vh - PAD) / h, 1.5));
+    const scaledW = w * fitZoom;
+    const scaledH = h * fitZoom;
+
+    setZoom(fitZoom);
+    setPan({
+      x: Math.max(0, (vw - scaledW) / 2),
+      y: Math.max(0, (vh - scaledH) / 2),
+    });
+  }, []);
 
   useEffect(() => {
     if (!code.trim() || !containerRef.current) {
@@ -87,7 +109,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     };
 
     render();
-  }, [code, language]);
+  }, [code, language, renderKey]);
 
   const renderMermaid = async () => {
     if (!containerRef.current) return;
@@ -95,10 +117,11 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     mermaid.initialize({ startOnLoad: false, theme: 'dark' });
 
     try {
-      const { svg } = await mermaid.render('mermaid-diagram', code);
+      const id = `mmd-${++renderIdRef.current}`;
+      const { svg } = await mermaid.render(id, code);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        fixSvgSize();
+        autoFitSvg();
       }
     } catch (error) {
       throw new Error(`Mermaid render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -113,10 +136,11 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     mermaid.initialize({ startOnLoad: false, theme: 'dark' });
 
     try {
-      const { svg } = await mermaid.render('dbml-diagram', mermaidCode);
+      const id = `dbml-${++renderIdRef.current}`;
+      const { svg } = await mermaid.render(id, mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        fixSvgSize();
+        autoFitSvg();
       }
     } catch (error) {
       throw new Error(`DBML render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -131,10 +155,11 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     mermaid.initialize({ startOnLoad: false, theme: 'dark' });
 
     try {
-      const { svg } = await mermaid.render('graphviz-diagram', mermaidCode);
+      const id = `gv-${++renderIdRef.current}`;
+      const { svg } = await mermaid.render(id, mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        fixSvgSize();
+        autoFitSvg();
       }
     } catch (error) {
       throw new Error(`Graphviz render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -212,8 +237,23 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   }, []);
 
   const handleFitView = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    const { width: w, height: h } = svgNaturalSize.current;
+    if (!w || !h || !viewportRef.current) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    const vw = viewportRef.current.clientWidth;
+    const vh = viewportRef.current.clientHeight;
+    const PAD = 48;
+    const fitZoom = Math.max(0.05, Math.min((vw - PAD) / w, (vh - PAD) / h, 1.5));
+    const scaledW = w * fitZoom;
+    const scaledH = h * fitZoom;
+    setZoom(fitZoom);
+    setPan({
+      x: Math.max(0, (vw - scaledW) / 2),
+      y: Math.max(0, (vh - scaledH) / 2),
+    });
   }, []);
 
   return (
@@ -247,7 +287,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
           }}
         >
           <button
-            onClick={() => setEditorMode('preview')}
+            onClick={() => { setEditorMode('preview'); setRenderKey(k => k + 1); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
             style={{
               backgroundColor: editorMode === 'preview' ? theme.colors.accent.primary : 'transparent',
@@ -273,26 +313,25 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
         </div>
       </div>
 
-      {/* Content */}
-      {editorMode === 'editor' ? (
-        <div className="flex-1 overflow-hidden">
-          <DiagramEditor
-            code={code}
-            language={language}
-            onCodeChange={onCodeChange || (() => {})}
-          />
-        </div>
-      ) : (
-        <div
-          ref={viewportRef}
-          className="flex-1 overflow-hidden relative"
-          style={{ cursor: 'grab' }}
-          onWheel={handleWheel}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
+      {/* Content — both panels stay mounted, visibility toggled */}
+      <div className="overflow-hidden" style={{ display: editorMode === 'editor' ? 'flex' : 'none', flex: 1 }}>
+        <DiagramEditor
+          code={code}
+          language={language}
+          onCodeChange={onCodeChange || (() => {})}
+        />
+      </div>
+
+      <div
+        ref={viewportRef}
+        className="overflow-hidden relative"
+        style={{ cursor: 'grab', display: editorMode === 'preview' ? 'flex' : 'none', flex: 1 }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
 
         {/* AI Generating / Correcting overlay */}
         {isGenerating && (
@@ -342,25 +381,13 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0',
-            transition: isPanning.current ? 'none' : 'transform 0.1s ease-out',
-            minWidth: '100%',
-            minHeight: '100%',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            padding: '24px',
+            transition: isPanning.current ? 'none' : 'transform 0.15s ease-out',
+            position: 'absolute',
+            top: 0,
+            left: 0,
           }}
         >
-          <div
-            ref={containerRef}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              overflow: 'visible',
-            }}
-          />
+          <div ref={containerRef} style={{ display: 'inline-block' }} />
         </div>
 
         {/* Zoom controls */}
@@ -416,7 +443,6 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
         </div>
 
         </div>
-      )}
     </div>
   );
 };

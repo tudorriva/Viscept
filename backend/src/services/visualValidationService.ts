@@ -54,13 +54,20 @@ Check for the following issues:
 
 If ANY part of the diagram is cut off, clipped at edges, or visually incomplete, you MUST return FAIL with confidence 0.9 or higher.
 
-Respond in EXACTLY this JSON format (no markdown fences, no extra text):
-{
-  "status": "PASS" or "FAIL",
-  "reason": "Brief explanation of the verdict",
-  "confidence": 0.0 to 1.0,
-  "suggestions": ["suggestion1", "suggestion2"]
-}`;
+You MUST respond with a JSON object. Do NOT copy the example — fill in your own real analysis.
+The JSON must have these four keys:
+- "status": either the string "PASS" or the string "FAIL"
+- "reason": a specific sentence describing what you actually see in the image
+- "confidence": a number between 0 and 1 reflecting how sure you are
+- "suggestions": an array of concrete, actionable improvement tips (or an empty array if the diagram looks good)
+
+Example of a GOOD response (do NOT copy this — write your own based on the image):
+{"status":"PASS","reason":"All four entity tables are clearly visible with readable labels and properly connected relationships.","confidence":0.92,"suggestions":[]}
+
+Example of a FAIL response (do NOT copy this — write your own based on the image):
+{"status":"FAIL","reason":"The Orders table overlaps with the Products table, making relationship lines unreadable.","confidence":0.85,"suggestions":["Increase spacing between the Orders and Products tables","Use orthogonal routing for relationship lines"]}
+
+Now analyse the image and respond with ONLY a JSON object. No markdown, no extra text.`;
 }
 
 // ── Core Validation Function ───────────────────────────────────────────────────
@@ -114,6 +121,30 @@ export async function validateDiagramVisually(
 /**
  * Parse the VLM's JSON response into a structured ValidationResult.
  */
+/** Detect if the VLM echoed the prompt template instead of producing real analysis. */
+function isTemplateEcho(parsed: Record<string, unknown>): boolean {
+  const reason = String(parsed.reason || '').toLowerCase();
+  const suggestions = Array.isArray(parsed.suggestions)
+    ? parsed.suggestions.map(String)
+    : [];
+
+  // Check for literal placeholder text from the prompt template
+  const placeholderReasons = [
+    'brief explanation of the verdict',
+    'brief explanation',
+  ];
+  const placeholderSuggestions = ['suggestion1', 'suggestion2'];
+
+  const reasonIsPlaceholder = placeholderReasons.some((p) => reason.includes(p));
+  const suggestionsArePlaceholder =
+    suggestions.length > 0 &&
+    suggestions.every((s) =>
+      placeholderSuggestions.includes(s.toLowerCase().trim())
+    );
+
+  return reasonIsPlaceholder || suggestionsArePlaceholder;
+}
+
 function parseValidationResponse(raw: string): ValidationResult {
   const timestamp = new Date().toISOString();
 
@@ -124,11 +155,25 @@ function parseValidationResponse(raw: string): ValidationResult {
 
     const parsed = JSON.parse(cleaned);
 
+    // Guard: If the VLM echoed the template instead of analysing, treat as ERROR
+    if (isTemplateEcho(parsed)) {
+      console.warn('[VisualValidation] Detected template-echo response — VLM did not perform real analysis.');
+      return {
+        status: 'ERROR',
+        reason:
+          'The visual model echoed the prompt template instead of analysing the diagram. ' +
+          'This usually means the VLM did not process the image. Please try again.',
+        confidence: 0,
+        suggestions: [],
+        timestamp,
+      };
+    }
+
     const confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5));
     const rawStatus = String(parsed.status).toUpperCase() === 'PASS' ? 'PASS' : 'FAIL';
 
     // A PASS with low confidence is unreliable — treat as FAIL
-    const CONFIDENCE_THRESHOLD = 0.75;
+    const CONFIDENCE_THRESHOLD = 0.65;
     const status: 'PASS' | 'FAIL' =
       rawStatus === 'PASS' && confidence < CONFIDENCE_THRESHOLD ? 'FAIL' : rawStatus;
 

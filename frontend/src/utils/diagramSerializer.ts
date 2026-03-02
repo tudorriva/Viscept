@@ -51,7 +51,7 @@ function serializeMermaidClass(nodes: Node[], edges: Edge[]): string {
   const lines: string[] = ['classDiagram'];
 
   for (const node of nodes) {
-    const data = node.data as TableNodeData;
+    const data = node.data as unknown as TableNodeData;
     const name = data?.label || node.id;
     const fields = data?.fields || [];
     const methods = data?.methods || [];
@@ -81,7 +81,7 @@ function serializeMermaidER(nodes: Node[], edges: Edge[]): string {
   const lines: string[] = ['erDiagram'];
 
   for (const node of nodes) {
-    const data = node.data as TableNodeData;
+    const data = node.data as unknown as TableNodeData;
     const name = data?.label || node.id;
     const fields = data?.fields || [];
 
@@ -148,7 +148,7 @@ function serializeDBML(nodes: Node[], edges: Edge[]): string {
   const lines: string[] = [];
 
   for (const node of nodes) {
-    const data = node.data as TableNodeData;
+    const data = node.data as unknown as TableNodeData;
     const tableName = data?.label || node.id;
     const fields = data?.fields || [];
 
