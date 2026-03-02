@@ -151,6 +151,12 @@ body {
   animation: glow 2s ease-in-out infinite;
 }
 
+/* Explicit spin keyframes for the generating spinner (inline style fallback) */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar {
   width: 8px;

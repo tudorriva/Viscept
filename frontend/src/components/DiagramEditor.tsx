@@ -106,9 +106,14 @@ export const DiagramEditor: React.FC<DiagramEditorProps> = ({
     }));
     setEdges(normalizedEdges);
 
-    // Reset the flag after a tick
+    // Reset the flag after React Flow has finished measuring nodes and
+    // processing the initial dimension changes.  A single rAF fires too
+    // early — React Flow's internal node measurement also uses rAF, so we
+    // wait two frames to be safe.
     requestAnimationFrame(() => {
-      isCodeDriven.current = false;
+      requestAnimationFrame(() => {
+        isCodeDriven.current = false;
+      });
     });
   }, [code, language, stableOnLabelChange]);
 

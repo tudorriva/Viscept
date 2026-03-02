@@ -125,6 +125,30 @@ function topologicalSort(nodes: RawNode[], edges: RawEdge[]): RawNode[] {
   return sorted.map((id) => nodeMap.get(id)!).filter(Boolean);
 }
 
+// ── Edge Factory ───────────────────────────────────────────────────────────────
+
+/**
+ * Build React Flow edges from raw parsed edges.
+ * Does NOT specify sourceHandle / targetHandle so React Flow auto-connects
+ * to the nearest available handle, which is more reliable on initial render.
+ */
+function buildEdges(
+  rawEdges: RawEdge[],
+  opts: { animated?: boolean } = {}
+): Edge[] {
+  return rawEdges.map((re, i) => ({
+    id: `e-${re.source}-${re.target}-${i}`,
+    source: re.source,
+    target: re.target,
+    label: re.label,
+    type: 'smoothstep',
+    animated: opts.animated ?? re.type === 'dashed',
+    style: { stroke: '#64748b', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
+    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
+  }));
+}
+
 // ── Mermaid Parser ─────────────────────────────────────────────────────────────
 
 function parseMermaid(code: string): ParsedDiagram {
@@ -204,19 +228,7 @@ function parseMermaidFlowchart(lines: string[]): ParsedDiagram {
   }
 
   const nodes = autoLayout(rawNodes, rawEdges);
-  const edges: Edge[] = rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    sourceHandle: 'bottom',
-    targetHandle: 'top',
-    label: re.label,
-    type: 'smoothstep',
-    animated: re.type === 'dashed',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  const edges = buildEdges(rawEdges);
 
   return { nodes, edges, diagramType: 'mermaid', subType: 'flowchart' };
 }
@@ -306,19 +318,7 @@ function parseMermaidClass(lines: string[]): ParsedDiagram {
   }
 
   const nodes = autoLayout(rawNodes, rawEdges, { colWidth: 300, rowHeight: 220, cols: 3 });
-  const edges: Edge[] = rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    sourceHandle: 'bottom',
-    targetHandle: 'top',
-    label: re.label,
-    type: 'smoothstep',
-    animated: re.type === 'dashed',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  const edges = buildEdges(rawEdges);
 
   return { nodes, edges, diagramType: 'mermaid', subType: 'classDiagram' };
 }
@@ -375,18 +375,7 @@ function parseMermaidER(lines: string[]): ParsedDiagram {
   }
 
   const nodes = autoLayout(rawNodes, rawEdges, { colWidth: 300, rowHeight: 200, cols: 3 });
-  const edges: Edge[] = rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    sourceHandle: 'bottom',
-    targetHandle: 'top',
-    label: re.label,
-    type: 'smoothstep',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  const edges = buildEdges(rawEdges);
 
   return { nodes, edges, diagramType: 'mermaid', subType: 'erDiagram' };
 }
@@ -444,19 +433,7 @@ function parseMermaidSequence(lines: string[]): ParsedDiagram {
     style: { minWidth: 120 },
   }));
 
-  const edges: Edge[] = rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    sourceHandle: 'right',
-    targetHandle: 'left',
-    label: re.label,
-    type: 'smoothstep',
-    animated: re.type === 'dashed',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  const edges = buildEdges(rawEdges);
 
   return { nodes, edges, diagramType: 'mermaid', subType: 'sequenceDiagram' };
 }
@@ -492,18 +469,7 @@ function parseMermaidState(lines: string[]): ParsedDiagram {
   }
 
   const nodes = autoLayout(rawNodes, rawEdges);
-  const edges: Edge[] = rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    sourceHandle: 'bottom',
-    targetHandle: 'top',
-    label: re.label,
-    type: 'smoothstep',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  const edges = buildEdges(rawEdges);
 
   return { nodes, edges, diagramType: 'mermaid', subType: 'stateDiagram' };
 }
@@ -568,18 +534,7 @@ function parseDBML(code: string): ParsedDiagram {
   }
 
   const nodes = autoLayout(rawNodes, rawEdges, { colWidth: 320, rowHeight: 240, cols: 3 });
-  const edges: Edge[] = rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    sourceHandle: 'bottom',
-    targetHandle: 'top',
-    label: re.label,
-    type: 'smoothstep',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  const edges = buildEdges(rawEdges);
 
   return { nodes, edges, diagramType: 'dbml', subType: 'erDiagram' };
 }
@@ -646,18 +601,7 @@ function parseGraphviz(code: string): ParsedDiagram {
   }
 
   const nodes = autoLayout(rawNodes, rawEdges);
-  const edges: Edge[] = rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    sourceHandle: 'bottom',
-    targetHandle: 'top',
-    label: re.label,
-    type: 'smoothstep',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  const edges = buildEdges(rawEdges);
 
   return { nodes, edges, diagramType: 'graphviz', subType: 'digraph' };
 }

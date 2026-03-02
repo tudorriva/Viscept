@@ -11,9 +11,20 @@ interface DiagramPreviewProps {
   onCodeChange?: (newCode: string) => void;
   /** True while the AI is generating / correcting code */
   isGenerating?: boolean;
+  /** Current prompt text (used to estimate generation time) */
+  prompt?: string;
 }
 
-export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false }) => {
+/** Estimate generation time in seconds based on prompt length and language complexity */
+function estimateGenerationTime(prompt: string, language: string): number {
+  const baseTime = 5; // minimum seconds
+  const perWordTime = 0.4;
+  const wordCount = prompt.trim().split(/\s+/).length;
+  const langMultiplier = language === 'graphviz' ? 1.3 : language === 'dbml' ? 1.2 : 1.0;
+  return Math.round((baseTime + wordCount * perWordTime) * langMultiplier);
+}
+
+export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false, prompt = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +40,22 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   const panOffset = useRef({ x: 0, y: 0 });
   const renderIdRef = useRef(0);
   const svgNaturalSize = useRef({ width: 0, height: 0 });
+
+  // Generation timer state
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const estimatedTime = estimateGenerationTime(prompt, language);
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setElapsedSeconds(0);
+      return undefined;
+    }
+    setElapsedSeconds(0);
+    const interval = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isGenerating]);
 
   /** Measure SVG natural size, preserve viewBox, and auto-fit within the viewport. */
   const autoFitSvg = useCallback(() => {
@@ -82,6 +109,10 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   useEffect(() => {
     if (!code.trim() || !containerRef.current) {
       setError(null);
+      // Clear stale diagram when code becomes empty (e.g. diagram type switch)
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
       return;
     }
 
@@ -167,42 +198,117 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   };
 
   const convertDBMLToMermaid = (dbml: string): string => {
-    // Simple DBML to Mermaid ER conversion
-    const tables = dbml.match(/Table\s+(\w+)\s*{([^}]*)}/gi) || [];
-    const relationships = dbml.match(/Ref:\s*(\w+)\.(\w+)\s*(<|>)\s*(\w+)\.(\w+)/gi) || [];
+    const lines = ['erDiagram'];
+    const tables = dbml.match(/Table\s+(\w+)\s*\{([^}]*)\}/gi) || [];
+    const refs: string[] = [];
 
-    let mermaidCode = 'erDiagram\n';
+    for (const table of tables) {
+      const nameMatch = table.match(/Table\s+(\w+)/i);
+      if (!nameMatch) continue;
+      const tableName = nameMatch[1];
 
-    tables.forEach((table) => {
-      const match = table.match(/Table\s+(\w+)/i);
-      if (match) {
-        mermaidCode += `  ${match[1]} ||--o{ "Entity" : "contains"\n`;
+      const bodyMatch = table.match(/\{([^}]*)\}/);
+      if (bodyMatch) {
+        const fields = bodyMatch[1]
+          .split('\n')
+          .map((f) => f.trim())
+          .filter((f) => f && !f.startsWith('//') && !f.startsWith('indexes'));
+
+        lines.push(`  ${tableName} {`);
+        for (const field of fields) {
+          if (/^\(/.test(field) || /^primary\b/i.test(field) || /^unique\b/i.test(field)) continue;
+          const clean = field.replace(/\[.*?\]/g, '').trim();
+          if (!clean) continue;
+          const parts = clean.split(/\s+/);
+          if (parts.length >= 2) {
+            const fName = parts[0].replace(/[^a-zA-Z0-9_]/g, '');
+            const fType = parts[1].replace(/[(),]/g, '_').replace(/_+/g, '_').replace(/_$/g, '').replace(/[^a-zA-Z0-9_]/g, '');
+            if (fName && fType) lines.push(`    ${fType} ${fName}`);
+          }
+
+          // Inline refs
+          const refMatch = field.match(/\[ref:\s*[><-]\s*(\w+)\.(\w+)\]/i);
+          if (refMatch) {
+            refs.push(`  ${tableName} ||--o{ ${refMatch[1]} : "references"`);
+          }
+        }
+        lines.push('  }');
       }
-    });
+    }
 
-    return mermaidCode.trim() || 'erDiagram\n  TABLE1 ||--o{ TABLE2 : "relationship"';
+    // Standalone Ref declarations
+    const standaloneRefs = dbml.match(/Ref\s*:\s*(\w+)\.(\w+)\s*[<>-]+\s*(\w+)\.(\w+)/gi) || [];
+    for (const ref of standaloneRefs) {
+      const m = ref.match(/Ref\s*:\s*(\w+)\.\w+\s*([<>-]+)\s*(\w+)\.\w+/i);
+      if (m) {
+        const [, left, dir, right] = m;
+        if (dir.includes('>')) refs.push(`  ${left} ||--o{ ${right} : "references"`);
+        else if (dir.includes('<')) refs.push(`  ${right} ||--o{ ${left} : "references"`);
+        else refs.push(`  ${left} ||--|| ${right} : "references"`);
+      }
+    }
+
+    // Deduplicate refs
+    for (const ref of [...new Set(refs)]) {
+      lines.push(ref);
+    }
+
+    const result = lines.join('\n');
+    return result.trim() || 'erDiagram\n  TABLE1 ||--o{ TABLE2 : "relationship"';
   };
 
   const convertGraphvizToMermaid = (dot: string): string => {
-    // Simple Graphviz to Mermaid conversion
-    const nodes = dot.match(/\w+\s*\[label="([^"]+)"/gi) || [];
-    const edges = dot.match(/(\w+)\s*->\s*(\w+)/gi) || [];
+    const dotLines = dot.split('\n').map((l) => l.trim()).filter(Boolean);
+    const nodeLabels = new Map<string, string>();
+    const edgeList: { src: string; tgt: string; label?: string }[] = [];
+    const nodeIds = new Set<string>();
+
+    for (const dl of dotLines) {
+      // Skip directives
+      if (/^(strict\s+)?(di)?graph\b/i.test(dl)) continue;
+      if (dl === '{' || dl === '}') continue;
+      if (/^(rankdir|node|edge|graph|label|fontname|fontsize|size)\b/i.test(dl)) continue;
+      if (/^\/\//.test(dl)) continue;
+
+      // Edges: A -> B [label="text"]
+      const edgeMatch = dl.match(/["']?(\w+)["']?\s*(-[->])\s*["']?(\w+)["']?\s*(?:\[([^\]]*)\])?/);
+      if (edgeMatch) {
+        const [, src, , tgt, attrs] = edgeMatch;
+        nodeIds.add(src);
+        nodeIds.add(tgt);
+        let edgeLabel: string | undefined;
+        if (attrs) {
+          const lm = attrs.match(/label\s*=\s*"([^"]*)"/);
+          if (lm) edgeLabel = lm[1];
+        }
+        edgeList.push({ src, tgt, label: edgeLabel });
+        continue;
+      }
+
+      // Node: A [label="Start"]
+      const nodeMatch = dl.match(/["']?(\w+)["']?\s*\[([^\]]*)\]/);
+      if (nodeMatch) {
+        const [, nId, attrs] = nodeMatch;
+        nodeIds.add(nId);
+        const lm = attrs.match(/label\s*=\s*"([^"]*)"/);
+        if (lm) nodeLabels.set(nId, lm[1]);
+      }
+    }
 
     let mermaidCode = 'flowchart LR\n';
 
-    nodes.forEach((node) => {
-      const match = node.match(/(\w+)\s*\[label="([^"]+)"/);
-      if (match) {
-        mermaidCode += `  ${match[1]}["${match[2]}"]\n`;
-      }
-    });
+    for (const nId of nodeIds) {
+      const label = nodeLabels.get(nId) || nId;
+      mermaidCode += `  ${nId}["${label}"]\n`;
+    }
 
-    edges.forEach((edge) => {
-      const match = edge.match(/(\w+)\s*->\s*(\w+)/);
-      if (match) {
-        mermaidCode += `  ${match[1]} --> ${match[2]}\n`;
+    for (const { src, tgt, label } of edgeList) {
+      if (label) {
+        mermaidCode += `  ${src} -->|${label}| ${tgt}\n`;
+      } else {
+        mermaidCode += `  ${src} --> ${tgt}\n`;
       }
-    });
+    }
 
     return mermaidCode.trim() || 'flowchart LR\n  A["Start"] --> B["End"]';
   };
@@ -335,15 +441,55 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
 
         {/* AI Generating / Correcting overlay */}
         {isGenerating && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4"
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5"
             style={{ backgroundColor: `${theme.colors.bg.primary}e6` }}>
+            {/* Animated spinner — explicit inline animation to guarantee it works */}
             <div className="relative">
-              <div className="w-16 h-16 rounded-full border-4 border-transparent animate-spin"
-                style={{ borderTopColor: theme.colors.accent.primary, borderRightColor: theme.colors.accent.secondary }} />
+              <svg width="64" height="64" viewBox="0 0 64 64" style={{ animation: 'spin 1s linear infinite' }}>
+                <circle cx="32" cy="32" r="28" fill="none" stroke={theme.colors.border.medium} strokeWidth="4" opacity="0.2" />
+                <circle
+                  cx="32" cy="32" r="28" fill="none"
+                  strokeWidth="4" strokeLinecap="round"
+                  stroke={`url(#spinner-gradient)`}
+                  strokeDasharray="120 60"
+                />
+                <defs>
+                  <linearGradient id="spinner-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor={theme.colors.accent.primary} />
+                    <stop offset="100%" stopColor={theme.colors.accent.secondary} />
+                  </linearGradient>
+                </defs>
+              </svg>
             </div>
             <div className="text-center">
               <p className="text-sm font-semibold" style={{ color: theme.colors.text.primary }}>Generating diagram...</p>
-              <p className="text-xs mt-1" style={{ color: theme.colors.text.tertiary }}>Auto-correcting if needed</p>
+              <p className="text-xs mt-1.5" style={{ color: theme.colors.text.tertiary }}>Auto-correcting if needed</p>
+              {/* Elapsed / estimated timer */}
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <div
+                  className="text-xs font-mono px-2.5 py-1 rounded-md"
+                  style={{
+                    backgroundColor: theme.colors.bg.tertiary,
+                    color: theme.colors.text.secondary,
+                    border: `1px solid ${theme.colors.border.medium}`,
+                  }}
+                >
+                  {elapsedSeconds}s / ~{estimatedTime}s
+                </div>
+                {/* Progress bar */}
+                <div
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ width: 80, backgroundColor: theme.colors.bg.tertiary }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-1000 ease-linear"
+                    style={{
+                      width: `${Math.min(95, (elapsedSeconds / estimatedTime) * 100)}%`,
+                      background: `linear-gradient(90deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}

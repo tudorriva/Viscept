@@ -356,7 +356,7 @@ export const App: React.FC = () => {
           style={{ borderColor: theme.colors.border.medium }}
         >
           <div ref={previewRef} className="flex-1 overflow-hidden">
-            <DiagramPreview code={code} language={diagramType} onCodeChange={handleVisualEditorCodeChange} isGenerating={isLoading} />
+            <DiagramPreview code={code} language={diagramType} onCodeChange={handleVisualEditorCodeChange} isGenerating={isLoading} prompt={prompt} />
           </div>
 
           {/* Visual Validation Panel */}
