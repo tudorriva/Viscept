@@ -725,34 +725,67 @@ EllipseNode.displayName = 'EllipseNode';
 export const GroupNode = memo(({ id, data, selected }: NodeProps) => {
   const label = String(data?.label || '');
   const collapsed = !!data?.collapsed;
+  const childCount = (data?.childCount as number) ?? 0;
+  const onGroupToggle = data?.onGroupToggle as ((groupId: string) => void) | undefined;
+  const groupId = (data?.groupId as string) ?? id;
+
+  const handleToggle = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onGroupToggle?.(groupId);
+    },
+    [onGroupToggle, groupId],
+  );
 
   return (
     <div
       style={{
-        minWidth: 200,
-        minHeight: 100,
-        padding: '28px 8px 8px',
+        minWidth: collapsed ? 160 : 200,
+        minHeight: collapsed ? 44 : 100,
+        padding: collapsed ? '10px 12px' : '28px 8px 8px',
         borderRadius: 8,
         backgroundColor: `${theme.colors.accent.primary}08`,
         border: `2px dashed ${selected ? theme.colors.accent.primary : theme.colors.border.strong}`,
         boxShadow: selectedGlow(selected),
-        transition: 'border-color 0.15s ease',
+        transition: 'border-color 0.15s ease, min-height 0.2s ease',
         position: 'relative',
       }}
     >
-      {/* Group label */}
+      {/* Group header with collapse toggle */}
       <div
-        className="text-xs font-semibold uppercase tracking-wide"
+        className="flex items-center gap-1.5 cursor-pointer select-none"
         style={{
-          position: 'absolute',
-          top: 6,
-          left: 10,
-          color: theme.colors.text.tertiary,
+          position: collapsed ? 'relative' : 'absolute',
+          top: collapsed ? undefined : 6,
+          left: collapsed ? undefined : 10,
         }}
+        onClick={handleToggle}
+        title={collapsed ? 'Expand group' : 'Collapse group'}
       >
-        {label}
+        <span
+          className="text-[10px] font-bold"
+          style={{
+            color: theme.colors.accent.primary,
+            transition: 'transform 0.15s ease',
+            display: 'inline-block',
+            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+          }}
+        >
+          ▼
+        </span>
+        <span
+          className="text-xs font-semibold uppercase tracking-wide"
+          style={{ color: theme.colors.text.tertiary }}
+        >
+          {label}
+        </span>
         {collapsed && (
-          <span className="ml-1.5 text-[10px] opacity-60">(collapsed)</span>
+          <span
+            className="text-[10px] ml-1"
+            style={{ color: theme.colors.text.muted }}
+          >
+            ({childCount} nodes)
+          </span>
         )}
       </div>
     </div>

@@ -506,15 +506,68 @@ export function visualEdgeToRF(vEdge: VisualEdge): Edge {
 /**
  * Convert an entire VisualDiagram into React Flow nodes + edges.
  *
+ * Handles group collapsing: when a group is collapsed, its member nodes are
+ * hidden and any edges to/from those nodes are removed from the output.
+ *
+ * Groups themselves are emitted as RF nodes with type 'groupNode'.
+ *
  * @param diagram  — the VCM
  * @param onLabelChange — stable callback for inline label editing
+ * @param onGroupToggle — callback when a group collapse/expand is toggled
  */
 export function vcmToReactFlow(
   diagram: VisualDiagram,
   onLabelChange?: (id: string, label: string) => void,
+  onGroupToggle?: (groupId: string) => void,
 ): { nodes: Node[]; edges: Edge[] } {
-  const nodes = diagram.nodes.map((n) => visualNodeToRF(n, onLabelChange));
-  const edges = diagram.edges.map((e) => visualEdgeToRF(e));
+  // Determine which nodes are hidden due to group collapse
+  const hiddenNodeIds = new Set<string>();
+  for (const group of diagram.groups) {
+    if (group.collapsed) {
+      for (const nid of group.nodeIds) {
+        hiddenNodeIds.add(nid);
+      }
+    }
+  }
+
+  // Convert visible nodes
+  const nodes: Node[] = [];
+  for (const n of diagram.nodes) {
+    if (hiddenNodeIds.has(n.id)) continue;
+    nodes.push(visualNodeToRF(n, onLabelChange));
+  }
+
+  // Emit group nodes (always visible — they show collapsed indicator)
+  for (const group of diagram.groups) {
+    const groupNode: Node = {
+      id: `__group__${group.id}`,
+      type: 'groupNode',
+      position: group.bounds
+        ? { x: group.bounds.x, y: group.bounds.y }
+        : { x: 0, y: 0 },
+      data: {
+        label: group.label,
+        collapsed: group.collapsed,
+        childCount: group.nodeIds.length,
+        onGroupToggle,
+        groupId: group.id,
+      },
+      style: group.bounds
+        ? { width: group.bounds.width, height: group.bounds.height }
+        : { minWidth: 200, minHeight: 100 },
+      // Groups render behind other nodes
+      zIndex: -1,
+    } as Node;
+    nodes.push(groupNode);
+  }
+
+  // Filter edges that reference hidden nodes
+  const edges: Edge[] = [];
+  for (const e of diagram.edges) {
+    if (hiddenNodeIds.has(e.sourceNodeId) || hiddenNodeIds.has(e.targetNodeId)) continue;
+    edges.push(visualEdgeToRF(e));
+  }
+
   return { nodes, edges };
 }
 
