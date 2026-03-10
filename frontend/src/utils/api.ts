@@ -149,6 +149,48 @@ export async function fetchDemo(): Promise<DemoResponse> {
   return response.data;
 }
 
+// ── v2.0 Chat-Based Endpoints ─────────────────────────────────────────────────
+
+export interface ChatMessageRequest {
+  chatId: string;
+  message: string;
+  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  currentDiagramCode?: string;
+  isFirstMessage: boolean;
+  enableValidation?: boolean;
+  maxRetries?: number;
+}
+
+export interface ChatMessageResponse {
+  code: string;
+  message: string;
+  language: string;
+  timestamp: string;
+  validation?: ValidationResult | null;
+  attempts?: number;
+}
+
+/**
+ * Send a chat message and receive updated diagram code.
+ */
+export async function sendChatMessage(req: ChatMessageRequest): Promise<ChatMessageResponse> {
+  const response = await client.post<ChatMessageResponse>('/api/chat/message', req);
+  return response.data;
+}
+
+export interface ClassifyResponse {
+  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  timestamp: string;
+}
+
+/**
+ * Auto-classify the best diagram type for a user prompt.
+ */
+export async function classifyDiagramType(prompt: string): Promise<'mermaid' | 'dbml' | 'graphviz'> {
+  const response = await client.post<ClassifyResponse>('/api/classify', { prompt });
+  return response.data.diagramType;
+}
+
 /**
  * Get available models and system capabilities.
  */

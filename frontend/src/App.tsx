@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { TopNavBar } from './components/TopNavBar';
-import { ProjectSidebar } from './components/ProjectSidebar';
+import { ChatSidebar } from './components/ChatSidebar';
 import { ChatPanel } from './components/ChatPanel';
 import { CodeEditor } from './components/CodeEditor';
 import { DiagramPreview } from './components/DiagramPreview';
@@ -10,57 +10,48 @@ import { OnboardingTour } from './components/OnboardingTour';
 import { ExamplesGallery } from './components/ExamplesGallery';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { ValidationPanel } from './components/ValidationPanel';
-import { useProjects } from './hooks/useProjects';
+import { useChat } from './hooks/useChat';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { generateDiagram, correctDiagram, formatCode as formatCodeAPI, fetchDemo, validateDiagram, ValidationResult } from './utils/api';
-import { DIAGRAM_EXAMPLES, DiagramExample } from './utils/examples';
+import { formatCode as formatCodeAPI, fetchDemo, validateDiagram, ValidationResult } from './utils/api';
+import { DiagramExample } from './utils/examples';
 import { theme } from './theme';
-import mermaid from 'mermaid';
 import './index.css';
 import { AlertCircle } from 'lucide-react';
 
-type DiagramType = 'mermaid' | 'dbml' | 'graphviz';
-
 export const App: React.FC = () => {
   const previewRef = useRef<HTMLDivElement>(null);
-  const {
-    projects,
-    currentProject,
-    favorites,
-    recent,
-    createProject,
-    updateProject,
-    deleteProject,
-    openProject,
-    toggleFavorite,
-    duplicateProject,
-  } = useProjects();
 
-  // State
-  const [prompt, setPrompt] = useState(currentProject?.prompt || '');
-  const [code, setCode] = useState(currentProject?.code || '');
-  const [diagramType, setDiagramType] = useState<DiagramType>(currentProject?.diagramType || 'mermaid');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // ── Chat hook (replaces useProjects + manual prompt/code state) ─────────
+  const chat = useChat();
+
+  // Derived state from chat
+  const code = chat.diagramCode;
+  const diagramType = chat.diagramType ?? 'mermaid';
+  const messages = chat.activeChat?.messages ?? [];
+
+  // ── Local UI state ──────────────────────────────────────────────────────
   const [isOllamaOnline, setIsOllamaOnline] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useLocalStorage('viscept_show_onboarding', projects.length === 0);
   const [showExamples, setShowExamples] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useLocalStorage(
+    'viscept_show_onboarding',
+    chat.chatList.length === 0,
+  );
+  const [localError, setLocalError] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
-  const [generationAttempts, setGenerationAttempts] = useState(0);
-  const [autoValidation] = useLocalStorage('viscept_auto_validation', false);
 
-  // Sync current project
+  // Merge errors: chat-level + local
+  const error = chat.error || localError;
+
+  // Clear local error after 6 seconds
   useEffect(() => {
-    if (currentProject) {
-      setPrompt(currentProject.prompt);
-      setCode(currentProject.code);
-      setDiagramType(currentProject.diagramType);
-    }
-  }, [currentProject]);
+    if (!localError) return undefined;
+    const t = setTimeout(() => setLocalError(null), 6000);
+    return () => clearTimeout(t);
+  }, [localError]);
 
-  // Check Ollama status
+  // ── Ollama health-check ─────────────────────────────────────────────────
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -76,12 +67,9 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Keyboard shortcuts
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && prompt.trim()) {
-        handleGenerate();
-      }
       if ((e.ctrlKey || e.metaKey) && e.key === ',') {
         e.preventDefault();
         setShowSettings(true);
@@ -94,100 +82,40 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [prompt]);
-
-  /**
-   * Try to pre-render Mermaid code to detect syntax errors.
-   * Returns null if rendering succeeds, or the error message on failure.
-   */
-  const preRenderCheck = useCallback(async (diagramCode: string, lang: string): Promise<string | null> => {
-    if (lang !== 'mermaid') return null; // Only Mermaid has client-side pre-render
-
-    try {
-      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
-      // Use a unique ID to avoid collisions
-      const id = `pre-render-check-${Date.now()}`;
-      await mermaid.render(id, diagramCode);
-      // Clean up the rendered element
-      const el = document.getElementById(id);
-      if (el) el.remove();
-      // Also remove the hidden container mermaid creates
-      const dEl = document.querySelector(`[id="d${id}"]`);
-      if (dEl) dEl.remove();
-      return null;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn('[PreRender] Syntax error detected:', msg);
-      return msg;
-    }
   }, []);
 
-  const MAX_RENDER_RETRIES = 3;
+  // ── Handlers ────────────────────────────────────────────────────────────
 
-  const handleGenerate = useCallback(async () => {
-    if (!prompt.trim()) return;
+  /** Code changed in either the text editor or the visual editor. */
+  const handleCodeChange = useCallback(
+    (newCode: string) => {
+      chat.updateDiagramCode(newCode);
+    },
+    [chat],
+  );
 
-    setIsLoading(true);
-    setError(null);
-    setValidationResult(null);
-
+  /** Format the current diagram code via the backend formatter. */
+  const handleFormatCode = useCallback(async () => {
+    if (!code.trim()) return;
     try {
-      let response = await generateDiagram({
-        prompt,
-        diagramType,
-        enableValidation: autoValidation,
-        maxRetries: 2,
-      });
-
-      let currentCode = response.code;
-      let attempts = 1;
-
-      // Self-correction loop: pre-render → detect error → send to AI → repeat
-      for (let i = 0; i < MAX_RENDER_RETRIES; i++) {
-        const renderErr = await preRenderCheck(currentCode, diagramType);
-        if (!renderErr) break; // Renders fine, we're done
-
-        console.log(`[AutoCorrect] Attempt ${i + 1}/${MAX_RENDER_RETRIES}: fixing render error`);
-        setError(`Auto-correcting render error (attempt ${i + 1}/${MAX_RENDER_RETRIES})...`);
-
-        const corrected = await correctDiagram({
-          code: currentCode,
-          diagramType,
-          renderError: renderErr,
-          originalPrompt: prompt,
-        });
-
-        currentCode = corrected.code;
-        attempts++;
-      }
-
-      setError(null); // Clear any "auto-correcting" message
-      setCode(currentCode);
-      setGenerationAttempts(attempts);
-
-      // Store validation results if the pipeline returned them
-      if (response.validation) {
-        setValidationResult(response.validation);
-      }
-
-      if (currentProject) {
-        updateProject(currentProject.id, {
-          code: currentCode,
-          prompt,
-          diagramType,
-        });
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to generate diagram';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
+      const response = await formatCodeAPI({ code, language: diagramType });
+      chat.updateDiagramCode(response.formatted);
+    } catch {
+      setLocalError('Failed to format code');
     }
-  }, [prompt, diagramType, currentProject, updateProject, autoValidation, preRenderCheck]);
+  }, [code, diagramType, chat]);
 
-  /**
-   * Manually validate the current diagram using the Visual Judge.
-   */
+  /** Load a built-in demo snippet for the active diagram type. */
+  const handleLoadDemo = useCallback(async () => {
+    try {
+      const demo = await fetchDemo();
+      chat.updateDiagramCode(demo[diagramType]);
+    } catch {
+      setLocalError('Failed to load demo');
+    }
+  }, [diagramType, chat]);
+
+  /** Run the Visual Judge on the current diagram. */
   const handleValidate = useCallback(async () => {
     if (!code.trim()) return;
 
@@ -195,85 +123,35 @@ export const App: React.FC = () => {
     setValidationResult(null);
 
     try {
+      const firstUserMessage = messages.find((m) => m.role === 'user');
       const result = await validateDiagram({
         code,
         diagramType,
-        originalPrompt: prompt || 'User diagram',
+        originalPrompt: firstUserMessage?.content ?? 'User diagram',
       });
-
       setValidationResult(result);
-    } catch (err) {
-      setError('Visual validation failed');
+    } catch {
+      setLocalError('Visual validation failed');
     } finally {
       setIsValidating(false);
     }
-  }, [code, diagramType, prompt]);
+  }, [code, diagramType, messages]);
 
-  const handleFormatCode = useCallback(async () => {
-    if (!code.trim()) return;
-
-    try {
-      const response = await formatCodeAPI({
-        code,
-        language: diagramType,
-      });
-
-      setCode(response.formatted);
-      if (currentProject) {
-        updateProject(currentProject.id, { code: response.formatted });
-      }
-    } catch (err) {
-      console.error('Format error:', err);
-      setError('Failed to format code');
-    }
-  }, [code, diagramType, currentProject, updateProject]);
-
-  const handleLoadDemo = useCallback(async () => {
-    try {
-      const demo = await fetchDemo();
-      setCode(demo[diagramType]);
-      setPrompt(`Demo: ${diagramType.toUpperCase()}`);
-    } catch (err) {
-      setError('Failed to load demo');
-    }
-  }, [diagramType]);
-
-  const handleCreateProject = useCallback(
-    (name: string, type?: DiagramType) => {
-      const project = createProject(name, type ?? diagramType, '', '');
-      openProject(project.id);
-    },
-    [createProject, openProject, diagramType]
-  );
-
+  /** User picked an example from the gallery. */
   const handleSelectExample = useCallback(
     (example: DiagramExample) => {
-      if (!currentProject) {
-        const project = createProject(example.title, example.type, example.code, example.prompt);
-        openProject(project.id);
-      } else {
-        updateProject(currentProject.id, {
-          code: example.code,
-          prompt: example.prompt,
-          diagramType: example.type,
-        });
-      }
+      // Set the code from the example directly
+      chat.updateDiagramCode(example.code);
     },
-    [currentProject, createProject, updateProject, openProject]
+    [chat],
   );
 
-  /**
-   * Handle code changes from the visual editor (bidirectional sync).
-   */
-  const handleVisualEditorCodeChange = useCallback(
-    (newCode: string) => {
-      setCode(newCode);
-      if (currentProject) {
-        updateProject(currentProject.id, { code: newCode });
-      }
-    },
-    [currentProject, updateProject]
-  );
+  /** Onboarding "create" callback — just opens a new chat. */
+  const handleOnboardingCreate = useCallback(() => {
+    chat.createChat();
+  }, [chat]);
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -290,52 +168,40 @@ export const App: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Project Sidebar */}
-        <ProjectSidebar
-          projects={projects}
-          favorites={favorites}
-          recent={recent}
-          currentProject={currentProject || null}
-          onSelectProject={(p) => openProject(p.id)}
-          onCreateProject={handleCreateProject}
-          onDeleteProject={deleteProject}
-          onToggleFavorite={toggleFavorite}
-          onDuplicateProject={(id) => {
-            const copy = duplicateProject(id);
-            if (copy) openProject(copy.id);
-          }}
+        {/* Chat Sidebar (replaces ProjectSidebar) */}
+        <ChatSidebar
+          chatList={chat.chatList}
+          activeChatId={chat.activeChat?.id ?? null}
+          onCreateChat={() => chat.createChat()}
+          onOpenChat={chat.openChat}
+          onDeleteChat={chat.deleteChat}
+          onRenameChat={chat.renameChat}
         />
 
-        {/* Left Panel: Chat */}
+        {/* Left Panel: Chat + Controls */}
         <div
           className="w-96 flex flex-col border-r"
           style={{ borderColor: theme.colors.border.medium }}
         >
           <ChatPanel
-            prompt={prompt}
-            onPromptChange={setPrompt}
-            diagramType={diagramType}
-            onDiagramTypeChange={(type: DiagramType) => {
-              setDiagramType(type);
-              setCode('');
-              setError(null);
-              setValidationResult(null);
-            }}
-            isLoading={isLoading}
-            onGenerate={handleGenerate}
+            messages={messages}
+            diagramType={chat.diagramType}
+            isLoading={chat.isLoading}
+            onSendMessage={chat.sendMessage}
+            onRegenerate={chat.regenerateLastResponse}
             onLoadDemo={handleLoadDemo}
             onShowExamples={() => setShowExamples(true)}
           />
 
-          {/* Control Panel */}
+          {/* Control Panel (export, import, etc.) */}
           <ControlPanel
             code={code}
             diagramType={diagramType}
-            prompt={prompt}
+            prompt={messages[0]?.content ?? ''}
             previewRef={previewRef}
             onLoadProject={(p) => {
-              const newProject = createProject(p.name || 'Imported', p.diagramType, p.code, p.prompt);
-              openProject(newProject.id);
+              // Import a project file → just set the code in the active chat
+              chat.updateDiagramCode(p.code);
             }}
           />
         </div>
@@ -344,25 +210,31 @@ export const App: React.FC = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           <CodeEditor
             code={code}
-            language={diagramType} // ← Make sure this is passed correctly
-            onChange={setCode}
+            language={diagramType}
+            onChange={handleCodeChange}
             onFormat={handleFormatCode}
           />
         </div>
 
-        {/* Right Panel: Preview */}
+        {/* Right Panel: Preview + Validation */}
         <div
           className="w-full min-w-96 border-l flex flex-col"
           style={{ borderColor: theme.colors.border.medium }}
         >
           <div ref={previewRef} className="flex-1 overflow-hidden">
-            <DiagramPreview code={code} language={diagramType} onCodeChange={handleVisualEditorCodeChange} isGenerating={isLoading} prompt={prompt} />
+            <DiagramPreview
+              code={code}
+              language={diagramType}
+              onCodeChange={handleCodeChange}
+              isGenerating={chat.isLoading}
+              prompt={messages[0]?.content ?? ''}
+            />
           </div>
 
           {/* Visual Validation Panel */}
           <ValidationPanel
             validation={validationResult}
-            attempts={generationAttempts}
+            attempts={0}
             isValidating={isValidating}
             onValidate={handleValidate}
             hasCode={!!code.trim()}
@@ -375,7 +247,7 @@ export const App: React.FC = () => {
       <OnboardingTour
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
-        onCreateProject={handleCreateProject}
+        onCreateProject={handleOnboardingCreate}
       />
       <ExamplesGallery
         isOpen={showExamples}

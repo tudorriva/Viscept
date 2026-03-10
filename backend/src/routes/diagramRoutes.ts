@@ -1,6 +1,6 @@
 /**
  * Diagram routes - handle /api/generate, /api/format, /api/demo,
- * /api/validate, and /api/models endpoints.
+ * /api/validate, /api/models, /api/chat, and /api/classify endpoints.
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -11,6 +11,8 @@ import {
   getDemoData,
   validateDiagram,
   getModels,
+  handleChatMessage,
+  handleClassifyDiagramType,
 } from '../controllers/diagramController.js';
 
 const router = Router();
@@ -127,6 +129,52 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await getModels(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/chat/message
+ * Send a chat message and receive an updated diagram.
+ *
+ * Request body:
+ *   {
+ *     chatId: string,
+ *     message: string,
+ *     diagramType: "mermaid" | "dbml" | "graphviz",
+ *     currentDiagramCode?: string,
+ *     isFirstMessage: boolean,
+ *     enableValidation?: boolean,
+ *     maxRetries?: number
+ *   }
+ */
+router.post(
+  '/chat/message',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await handleChatMessage(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/classify
+ * Classify the diagram type from a user prompt.
+ *
+ * Request body:
+ *   {
+ *     prompt: string
+ *   }
+ */
+router.post(
+  '/classify',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await handleClassifyDiagramType(req, res);
     } catch (error) {
       next(error);
     }

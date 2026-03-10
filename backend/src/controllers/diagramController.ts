@@ -3,7 +3,7 @@
  */
 
 import { Request, Response } from 'express';
-import { generateWithOllama, correctWithOllama, getModelConfig, listOllamaModels, checkOllamaHealth } from '../services/ollamaService.js';
+import { generateWithOllama, correctWithOllama, modifyDiagramWithOllama, classifyDiagramTypeWithOllama, getModelConfig, listOllamaModels, checkOllamaHealth } from '../services/ollamaService.js';
 import { formatCode as formatCodeService } from '../services/formatterService.js';
 import { getDemoData as getDemoDataService } from '../services/demoService.js';
 import { runPipeline, validateExistingDiagram } from '../services/pipelineService.js';
@@ -261,6 +261,144 @@ export async function getDemoData(_req: Request, res: Response): Promise<void> {
     console.error('[Controller] Error in getDemoData:', error);
     res.status(500).json({
       error: 'Failed to retrieve demo data',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+// ── v2.0 Chat-Based Endpoints ──────────────────────────────────────────────────
+
+interface ChatMessageRequest {
+  chatId: string;
+  message: string;
+  diagramType: string;
+  currentDiagramCode?: string;
+  isFirstMessage: boolean;
+  enableValidation?: boolean;
+  maxRetries?: number;
+}
+
+/**
+ * POST /api/chat/message - Process a chat message and return updated diagram.
+ *
+ * First message  → generates a new diagram from the prompt.
+ * Follow-ups     → modifies the existing diagram based on the instruction.
+ */
+export async function handleChatMessage(req: Request, res: Response): Promise<void> {
+  const {
+    chatId,
+    message,
+    diagramType,
+    currentDiagramCode,
+    isFirstMessage,
+    enableValidation = false,
+    maxRetries,
+  } = req.body as ChatMessageRequest;
+
+  if (!chatId || typeof chatId !== 'string') {
+    res.status(400).json({ error: 'chatId is required' });
+    return;
+  }
+  if (!message || typeof message !== 'string') {
+    res.status(400).json({ error: 'message is required' });
+    return;
+  }
+  if (!diagramType || typeof diagramType !== 'string') {
+    res.status(400).json({ error: 'diagramType is required' });
+    return;
+  }
+
+  const validTypes = ['mermaid', 'plantuml', 'dbml', 'graphviz'];
+  if (!validTypes.includes(diagramType)) {
+    res.status(400).json({ error: `Invalid diagramType. Must be one of: ${validTypes.join(', ')}` });
+    return;
+  }
+
+  try {
+    let code: string;
+    let assistantMessage: string;
+
+    if (isFirstMessage || !currentDiagramCode) {
+      // ── First message: generate from scratch ─────────────────────────────
+      console.log(`[Controller] Chat ${chatId}: first message, generating ${diagramType} diagram`);
+
+      if (enableValidation) {
+        const result = await runPipeline(message, diagramType, {
+          enableValidation: true,
+          maxRetries: maxRetries ?? 2,
+        });
+        code = result.code;
+        assistantMessage = 'Here is your diagram. Feel free to ask me to modify it.';
+
+        res.json({
+          code,
+          message: assistantMessage,
+          language: diagramType,
+          timestamp: new Date().toISOString(),
+          validation: result.validation,
+          attempts: result.attempts,
+        });
+        return;
+      }
+
+      const result = await generateWithOllama(message, diagramType);
+      code = result.code;
+      assistantMessage = 'Here is your diagram. You can ask me to add, remove, or change any part of it.';
+    } else {
+      // ── Follow-up message: modify existing diagram ───────────────────────
+      console.log(`[Controller] Chat ${chatId}: modifying ${diagramType} diagram`);
+
+      const result = await modifyDiagramWithOllama(
+        currentDiagramCode,
+        message,
+        diagramType,
+      );
+      code = result.code;
+      assistantMessage = 'I\'ve updated the diagram based on your request.';
+    }
+
+    res.json({
+      code,
+      message: assistantMessage,
+      language: diagramType,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Controller] Error in handleChatMessage:', error);
+    res.status(500).json({
+      error: 'Failed to process chat message',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+interface ClassifyRequest {
+  prompt: string;
+}
+
+/**
+ * POST /api/classify - Auto-detect the best diagram type for a user prompt.
+ */
+export async function handleClassifyDiagramType(req: Request, res: Response): Promise<void> {
+  const { prompt } = req.body as ClassifyRequest;
+
+  if (!prompt || typeof prompt !== 'string') {
+    res.status(400).json({ error: 'prompt is required' });
+    return;
+  }
+
+  try {
+    console.log(`[Controller] Classifying diagram type for: "${prompt.substring(0, 60)}..."`);
+    const diagramType = await classifyDiagramTypeWithOllama(prompt);
+
+    res.json({
+      diagramType,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Controller] Error in handleClassifyDiagramType:', error);
+    res.status(500).json({
+      error: 'Failed to classify diagram type',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }

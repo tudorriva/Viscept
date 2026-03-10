@@ -424,3 +424,151 @@ export function getModelConfig() {
     maxValidationRetries: MAX_VALIDATION_RETRIES,
   };
 }
+
+// ── v2.0 Chat-Based Diagram Modification ───────────────────────────────────────
+
+/**
+ * Build a system prompt for modifying an existing diagram (follow-up messages).
+ */
+function buildModificationSystemPrompt(diagramType: string): string {
+  const typeLabel: Record<string, string> = {
+    mermaid: 'Mermaid',
+    plantuml: 'PlantUML',
+    dbml: 'DBML',
+    graphviz: 'Graphviz DOT',
+  };
+  const label = typeLabel[diagramType] || diagramType;
+
+  return `You are modifying an existing ${label} diagram. You will receive the current diagram code and a user request describing desired changes.
+
+RULES:
+- Output ONLY the updated ${label} code.
+- Modify the existing code — do NOT rewrite from scratch.
+- Preserve the overall structure, styling, and layout of the original.
+- Only add, remove, or change the specific elements the user asked about.
+- No explanations, no prose, no markdown fences, no comments.
+- Output code only.`;
+}
+
+/**
+ * Modify an existing diagram based on a user instruction.
+ * Sends the current code + user request to the LLM.
+ */
+export async function modifyDiagramWithOllama(
+  currentCode: string,
+  userRequest: string,
+  diagramType: string,
+): Promise<OllamaResponse> {
+  const systemPrompt = buildModificationSystemPrompt(diagramType);
+  const userMessage = [
+    `CURRENT ${diagramType.toUpperCase()} DIAGRAM CODE:`,
+    currentCode,
+    '',
+    `USER REQUEST:`,
+    userRequest,
+    '',
+    `Output ONLY the updated ${diagramType} code with the requested changes applied.`,
+  ].join('\n');
+
+  try {
+    console.log(`[Ollama] Modifying ${diagramType} diagram for: "${userRequest.substring(0, 60)}..."`);
+
+    const response = await axios.post(
+      OLLAMA_URL,
+      {
+        model: OLLAMA_MODEL,
+        prompt: userMessage,
+        system: systemPrompt,
+        stream: false,
+        temperature: 0.25,
+      },
+      {
+        timeout: OLLAMA_TIMEOUT,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+
+    const responseText = response.data.response || '';
+    const code = extractCodeFromResponse(responseText, diagramType);
+
+    console.log(`[Ollama] Modified diagram: ${code.length} chars`);
+
+    return {
+      code,
+      language: diagramType,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('[Ollama] Modification error:', error instanceof Error ? error.message : String(error));
+    // Return the original code if modification fails
+    return {
+      code: currentCode,
+      language: diagramType,
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * Classify the best diagram DSL type for a user prompt.
+ * Returns one of: mermaid | dbml | graphviz
+ */
+export async function classifyDiagramTypeWithOllama(
+  prompt: string,
+): Promise<string> {
+  const systemPrompt = `You are a diagram type classifier. Based on the user's description, choose the most appropriate diagram DSL.
+
+Available types:
+- dbml: for database schemas, entity-relationship diagrams, data models, tables with columns and foreign keys
+- mermaid: for flowcharts, sequence diagrams, class diagrams, state machines, architecture overviews, process flows
+- graphviz: for complex graph relationships, network topologies, dependency trees, hierarchical structures with many interconnections
+
+Respond with ONLY a JSON object: {"diagramType": "mermaid"} or {"diagramType": "dbml"} or {"diagramType": "graphviz"}
+No explanations. JSON only.`;
+
+  try {
+    console.log(`[Ollama] Classifying diagram type for: "${prompt.substring(0, 60)}..."`);
+
+    const response = await axios.post(
+      OLLAMA_URL,
+      {
+        model: OLLAMA_MODEL,
+        prompt: `Classify the diagram type for: ${prompt}`,
+        system: systemPrompt,
+        stream: false,
+        temperature: 0.1,
+        format: 'json',
+      },
+      {
+        timeout: 30000,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+
+    const raw = (response.data.response || '').trim();
+    let cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+
+    const parsed = JSON.parse(cleaned);
+    const type = parsed.diagramType?.toLowerCase();
+
+    if (['mermaid', 'dbml', 'graphviz'].includes(type)) {
+      console.log(`[Ollama] Classified as: ${type}`);
+      return type;
+    }
+
+    console.warn(`[Ollama] Unknown classification "${type}", defaulting to mermaid`);
+    return 'mermaid';
+  } catch (error) {
+    console.error('[Ollama] Classification error:', error instanceof Error ? error.message : String(error));
+
+    // Simple heuristic fallback
+    const lower = prompt.toLowerCase();
+    if (/\b(database|schema|table|column|foreign.?key|erd|entity|relation)\b/.test(lower)) {
+      return 'dbml';
+    }
+    if (/\b(graph|network|topology|dependenc|hierarchi|tree)\b/.test(lower)) {
+      return 'graphviz';
+    }
+    return 'mermaid';
+  }
+}
