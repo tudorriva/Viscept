@@ -9,11 +9,11 @@ import app from './app.js';
 
 const PORT = process.env.PORT || 3001;
 
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Viscept Backend running on http://localhost:${PORT}`);
+const server = app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`🚀 Viscept Backend running on http://0.0.0.0:${PORT} (all interfaces)`);
   console.log(`   Ollama endpoint: ${process.env.OLLAMA_URL || 'http://localhost:11434'}`);
   console.log(`   Generative Model: ${process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b'}`);
-  console.log(`   Vision Model: ${process.env.OLLAMA_VLM_MODEL || 'moondream:latest'}`);
+  console.log(`   Vision Model: ${process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b'}`);;
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 

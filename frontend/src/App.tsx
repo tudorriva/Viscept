@@ -55,17 +55,21 @@ export const App: React.FC = () => {
   }, [localError]);
 
   // ── Ollama health check ───────────────────────────────────────────────────
+  // Ask the *backend* — not Ollama directly — so this works from any device
+  // on the network (the browser's localhost ≠ the server's localhost).
   useEffect(() => {
     const check = async () => {
       try {
-        const r = await fetch('http://localhost:11434/api/tags');
-        setIsOllamaOnline(r.ok);
+        const r = await fetch('/api/health');
+        if (!r.ok) { setIsOllamaOnline(false); return; }
+        const data = await r.json();
+        setIsOllamaOnline(data?.ollama?.online ?? false);
       } catch {
         setIsOllamaOnline(false);
       }
     };
     check();
-    const iv = setInterval(check, 5000);
+    const iv = setInterval(check, 30_000); // 30 s — no need to hammer the backend
     return () => clearInterval(iv);
   }, []);
 

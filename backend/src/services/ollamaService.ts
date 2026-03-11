@@ -14,7 +14,7 @@ export interface OllamaResponse {
 const OLLAMA_BASE_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
-const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'moondream:latest';
+const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b';
 const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || '300000', 10);
 const OLLAMA_MODIFY_TIMEOUT = parseInt(process.env.OLLAMA_MODIFY_TIMEOUT || '600000', 10); // 10 min for modifications
 const STRICT_MODE = process.env.STRICT_MODE === 'true';

@@ -17,7 +17,7 @@ const MODEL_OPTIONS: ModelOption[] = [
   { value: 'mistral',           label: 'Mistral 7B',          group: 'code' },
   { value: 'llama3.1:8b',       label: 'Llama 3.1 8B',        group: 'code' },
   { value: 'codellama:7b',      label: 'CodeLlama 7B',        group: 'code' },
-  { value: 'qwen2.5-vl:3b',     label: 'Qwen2.5-VL 3B',      group: 'vision', recommended: true },
+  { value: 'qwen2.5vl:3b',     label: 'Qwen2.5-VL 3B',      group: 'vision', recommended: true },
   { value: 'moondream:latest',  label: 'Moondream2 1.9B',    group: 'vision' },
 ];
 

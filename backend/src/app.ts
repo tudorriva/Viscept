@@ -16,19 +16,30 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Request logging middleware
+// Request logging middleware — skip noisy health-check polls
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  if (req.path !== '/api/health') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  }
   next();
 });
 
+// ── Health check cache (15 s) — avoids hammering Ollama on every browser poll
+let healthCache: { result: Record<string, unknown>; expiresAt: number } | null = null;
+
 // Health check endpoint with system capabilities
 app.get('/api/health', async (req, res) => {
+  const now = Date.now();
+  if (healthCache && now < healthCache.expiresAt) {
+    res.json(healthCache.result);
+    return;
+  }
+
   const ollamaOnline = await checkOllamaHealth();
   const vlm = await checkVLMHealth();
   const config = getModelConfig();
 
-  res.json({
+  const payload = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     ollama: {
@@ -43,7 +54,10 @@ app.get('/api/health', async (req, res) => {
     pipeline: {
       maxRetries: config.maxValidationRetries,
     },
-  });
+  };
+
+  healthCache = { result: payload, expiresAt: Date.now() + 15_000 };
+  res.json(payload);
 });
 
 // API Routes

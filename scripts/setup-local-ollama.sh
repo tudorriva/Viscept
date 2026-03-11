@@ -46,13 +46,13 @@ GENERATIVE MODEL (code generation):
 VISUAL VALIDATION MODEL (diagram inspection):
 
   RECOMMENDED (~3GB):
-    $ ollama pull qwen2.5-vl:3b
+    $ ollama pull qwen2.5vl:3b
 
   LIGHTER ALTERNATIVE (~2GB):
     $ ollama pull moondream
 
 Quick setup (pull both recommended models):
-  $ ollama pull qwen2.5-coder:7b && ollama pull qwen2.5-vl:3b
+  $ ollama pull qwen2.5-coder:7b && ollama pull qwen2.5vl:3b
 
 STEP 3: Start Ollama Server
 ────────────────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ Edit backend/.env (or copy from backend/.env.example):
 
   OLLAMA_URL=http://localhost:11434
   OLLAMA_MODEL=qwen2.5-coder:7b
-  OLLAMA_VLM_MODEL=qwen2.5-vl:3b
+  OLLAMA_VLM_MODEL=qwen2.5vl:3b
 
 Then start the backend:
   $ cd backend && npm install && npm run dev
@@ -137,12 +137,12 @@ Generation (Code → Diagram):
   mistral            (~4.4GB) — Legacy, lower diagram accuracy
 
 Visual Validation (Image → Judgement):
-  qwen2.5-vl:3b     (~3GB)   — Best OCR + spatial reasoning ★ Recommended
+  qwen2.5vl:3b     (~3GB)   — Best OCR + spatial reasoning ★ Recommended
   moondream          (~2GB)   — Faster, weaker at small text
 
 Set in backend/.env:
   OLLAMA_MODEL=qwen2.5-coder:7b
-  OLLAMA_VLM_MODEL=qwen2.5-vl:3b
+  OLLAMA_VLM_MODEL=qwen2.5vl:3b
 
 For more info:
   - Ollama: https://ollama.ai

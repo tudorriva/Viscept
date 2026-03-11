@@ -4,7 +4,11 @@
 
 import axios, { AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use explicit API URL if provided (e.g. for production deployments).
+// In dev, leave this unset: axios will use a relative base URL so all /api/*
+// requests are handled by the Vite proxy, which forwards them to the backend
+// regardless of which machine the browser is on.
+const API_URL = import.meta.env.VITE_API_URL ?? '';
 // use VITE_API_TIMEOUT (ms) or fallback to 300000 (5 min)
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '300000', 10);
 

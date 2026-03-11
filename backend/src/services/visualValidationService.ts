@@ -17,7 +17,7 @@ import path from 'path';
 // ── Configuration ──────────────────────────────────────────────────────────────
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5-vl:3b';
+const VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b';
 const VLM_TIMEOUT = parseInt(process.env.VLM_TIMEOUT || '120000', 10);
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ function parseValidationResponse(raw: string): ValidationResult {
     // the judgement is unreliable — downgrade to PASS.
     const reasonIsMissing = !rawReason || rawReason.toLowerCase() === 'no reason provided' || rawReason.length < 5;
     if (rawStatus === 'FAIL' && (reasonIsMissing || confidence < 0.5)) {
-      console.warn('[VisualValidation] VLM returned FAIL with insufficient reasoning — treating as unreliable PASS.');
+      console.log('[VisualValidation] FAIL verdict lacked sufficient reasoning — treating as PASS.');
       return {
         status: 'PASS' as const,
         reason: rawReason || 'Visual model could not articulate a specific issue — treated as PASS.',
