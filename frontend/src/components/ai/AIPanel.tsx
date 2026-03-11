@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as ScrollArea from '@radix-ui/react-scroll-area';
 import { useUIStore } from '../../store/uiStore';
 import { PromptComposer } from './PromptComposer';
 import { GenerationProgress } from './GenerationProgress';
@@ -98,35 +97,21 @@ export const AIPanel: React.FC<AIPanelProps> = (props) => {
               )}
             </AnimatePresence>
 
-            {/* ── Scrollable body ──────────────────────────────────── */}
-            <ScrollArea.Root className="flex-1 min-h-0">
-              <ScrollArea.Viewport className="h-full w-full">
-                <div className="flex flex-col h-full">
-                  {/* PromptComposer fills remaining space */}
-                  <div className="flex-1 min-h-0" style={{ display: 'flex', flexDirection: 'column' }}>
-                    <PromptComposer
-                      messages={messages}
-                      diagramType={diagramType}
-                      isLoading={isLoading}
-                      onSendMessage={onSendMessage}
-                      onRegenerate={onRegenerate}
-                      onLoadDemo={onLoadDemo}
-                      onShowExamples={onShowExamples}
-                    />
-                  </div>
-                </div>
-              </ScrollArea.Viewport>
-              <ScrollArea.Scrollbar
-                orientation="vertical"
-                className="flex select-none touch-none p-0.5 w-2 transition-colors"
-                style={{ background: 'transparent' }}
-              >
-                <ScrollArea.Thumb
-                  className="flex-1 rounded-full relative"
-                  style={{ background: 'var(--border-medium)' }}
-                />
-              </ScrollArea.Scrollbar>
-            </ScrollArea.Root>
+            {/* ── Chat body ────────────────────────────────────────── */}
+            {/* PromptComposer manages its own internal message-list scroll;
+                wrapping it in a Radix ScrollArea breaks its flex layout.
+                A plain overflow-hidden flex column is all we need here. */}
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <PromptComposer
+                messages={messages}
+                diagramType={diagramType}
+                isLoading={isLoading}
+                onSendMessage={onSendMessage}
+                onRegenerate={onRegenerate}
+                onLoadDemo={onLoadDemo}
+                onShowExamples={onShowExamples}
+              />
+            </div>
 
             {/* ── Validation footer ────────────────────────────────── */}
             <div

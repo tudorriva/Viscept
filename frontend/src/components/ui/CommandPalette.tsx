@@ -172,7 +172,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: -12 }}
             transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-            className="fixed left-1/2 top-[18%] z-[100] -translate-x-1/2 w-[560px] rounded-2xl overflow-hidden outline-none"
+            className="fixed top-[18%] left-0 right-0 mx-auto z-[100] w-[560px] rounded-2xl overflow-hidden outline-none"
             style={{
               background: 'var(--bg-panel)',
               border: '1px solid var(--border-medium)',

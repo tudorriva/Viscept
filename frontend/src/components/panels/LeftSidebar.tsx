@@ -68,32 +68,45 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       }}
     >
       {/* ── New Diagram Button ─────────────────────────────────────── */}
-      <div className="p-2 border-b shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
-        {leftSidebarOpen ? (
+      {/* Both states stay in the DOM so the sidebar width animation stays smooth.
+          We cross-fade with opacity rather than swapping via ternary (avoids
+          an abrupt content jump during the spring animation). */}
+      <div className="p-2 border-b shrink-0 relative" style={{ borderColor: 'var(--border-subtle)' }}>
+        {/* Expanded label button */}
+        <div
+          className="transition-opacity duration-200"
+          style={{ opacity: leftSidebarOpen ? 1 : 0, pointerEvents: leftSidebarOpen ? 'auto' : 'none' }}
+        >
           <GradientBorderCard glow className="rounded-xl" gradient="accent">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               onClick={onCreateChat}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-[calc(0.75rem-1px)] text-sm font-medium text-text-primary"
-              style={{ backgroundColor: 'var(--bg-panel)' }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-[calc(0.75rem-1px)] text-sm font-medium"
+              style={{ backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
             >
               <Plus size={15} />
               New Diagram
             </motion.button>
           </GradientBorderCard>
-        ) : (
+        </div>
+
+        {/* Collapsed icon button — overlaid so the outer div height stays stable */}
+        <div
+          className="absolute inset-0 flex items-center justify-center transition-opacity duration-200"
+          style={{ opacity: leftSidebarOpen ? 0 : 1, pointerEvents: leftSidebarOpen ? 'none' : 'auto' }}
+        >
           <AnimatedButton
             variant="ghost"
             size="icon"
             onClick={onCreateChat}
             subtle
             title="New Diagram"
-            className="w-8 h-8 mx-auto"
+            className="w-8 h-8"
           >
             <Plus size={16} />
           </AnimatedButton>
-        )}
+        </div>
       </div>
 
       {/* ── Chat list ─────────────────────────────────────────────── */}

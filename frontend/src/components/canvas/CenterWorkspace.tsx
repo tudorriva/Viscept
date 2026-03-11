@@ -66,6 +66,7 @@ export const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                   onCodeChange={onCodeChange}
                   isGenerating={isGenerating}
                   prompt={prompt}
+                  hideToggle
                 />
               </div>
             </motion.div>

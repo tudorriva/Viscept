@@ -56,7 +56,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.93, opacity: 0, y: 12 }}
             transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-            className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[680px] h-[520px] rounded-2xl flex overflow-hidden outline-none"
+            className="fixed inset-0 m-auto z-50 w-[680px] h-[520px] rounded-2xl flex overflow-hidden outline-none"
             style={{
               background: 'var(--bg-panel)',
               border: '1px solid var(--border-medium)',

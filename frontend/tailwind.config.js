@@ -73,6 +73,12 @@ export default {
         'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.07)',
       },
       animation: {
+        // Re-declare Tailwind's built-in spin so it isn't lost when we
+        // override the `animation` key with our custom entries.
+        'spin':           'spin 1s linear infinite',
+        'ping':           'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'pulse':          'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'bounce':         'bounce 1s infinite',
         'fade-in':        'fadeIn 0.3s ease-in-out',
         'fade-in-up':     'fadeInUp 0.35s ease-out',
         'slide-in-left':  'slideInLeft 0.4s ease-out',
@@ -88,6 +94,10 @@ export default {
         'bounce-gentle':  'bounce 2s infinite',
       },
       keyframes: {
+        // Tailwind built-ins (must be re-declared when keyframes key is overridden)
+        spin:            { from:{transform:'rotate(0deg)'}, to:{transform:'rotate(360deg)'} },
+        ping:            { '75%,100%':{transform:'scale(2)', opacity:'0'} },
+        bounce:          { '0%,100%':{transform:'translateY(-25%)', animationTimingFunction:'cubic-bezier(0.8,0,1,1)'}, '50%':{transform:'none', animationTimingFunction:'cubic-bezier(0,0,0.2,1)'} },
         fadeIn:          { from:{opacity:'0'}, to:{opacity:'1'} },
         fadeInUp:        { from:{opacity:'0',transform:'translateY(12px)'}, to:{opacity:'1',transform:'translateY(0)'} },
         slideInLeft:     { from:{transform:'translateX(-30px)',opacity:'0'}, to:{transform:'translateX(0)',opacity:'1'} },

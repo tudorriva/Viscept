@@ -13,6 +13,12 @@ interface DiagramPreviewProps {
   isGenerating?: boolean;
   /** Current prompt text (used to estimate generation time) */
   prompt?: string;
+  /**
+   * When true the Preview/Editor mode toggle is hidden and the component is
+   * locked to preview mode.  Pass this when DiagramPreview is embedded inside
+   * a parent that already provides its own tab/toggle (e.g. CenterWorkspace).
+   */
+  hideToggle?: boolean;
 }
 
 /** Estimate generation time in seconds based on prompt length and language complexity.
@@ -27,12 +33,15 @@ function estimateGenerationTime(prompt: string, language: string): number {
   return Math.round((baseTime + wordCount * perWordTime + complexityBonus) * langMultiplier);
 }
 
-export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false, prompt = '' }) => {
+export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false, prompt = '', hideToggle = false }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [editorMode, setEditorMode] = useState<'preview' | 'editor'>('preview');
+  // When the parent hides the toggle (e.g. CenterWorkspace manages tabs itself)
+  // always stay in preview mode so the internal editor pane never shows.
+  const effectiveMode = hideToggle ? 'preview' : editorMode;
   const [renderKey, setRenderKey] = useState(0);
 
   // Zoom / Pan state
@@ -457,7 +466,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-gradient-to-br from-green-500/20 to-cyan-600/20 flex items-center justify-center">
-            {editorMode === 'preview' ? (
+          {effectiveMode === 'preview' ? (
               <Eye size={16} color={theme.colors.accent.primary} />
             ) : (
               <Pencil size={16} color={theme.colors.accent.secondary} />
@@ -465,15 +474,16 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wide">
-              {editorMode === 'preview' ? 'Preview' : 'Visual Editor'}
+              {effectiveMode === 'preview' ? 'Preview' : 'Visual Editor'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              {editorMode === 'preview' ? 'Live Rendering' : 'Drag & Drop Editing'}
+              {effectiveMode === 'preview' ? 'Live Rendering' : 'Drag & Drop Editing'}
             </p>
           </div>
         </div>
 
-        {/* Mode Toggle */}
+        {/* Mode Toggle — hidden when the parent manages tab switching */}
+        {!hideToggle && (
         <div
           className="flex items-center rounded-lg p-0.5"
           style={{
@@ -506,10 +516,11 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
             Editor
           </button>
         </div>
+        )}
       </div>
 
       {/* Content — both panels stay mounted, visibility toggled */}
-      <div className="overflow-hidden" style={{ display: editorMode === 'editor' ? 'flex' : 'none', flex: 1 }}>
+      <div className="overflow-hidden" style={{ display: effectiveMode === 'editor' ? 'flex' : 'none', flex: 1 }}>
         <DiagramEditor
           code={code}
           language={language}
@@ -520,7 +531,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       <div
         ref={viewportRef}
         className="overflow-hidden relative"
-        style={{ cursor: 'grab', display: editorMode === 'preview' ? 'flex' : 'none', flex: 1 }}
+        style={{ cursor: 'grab', display: effectiveMode === 'preview' ? 'flex' : 'none', flex: 1 }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
