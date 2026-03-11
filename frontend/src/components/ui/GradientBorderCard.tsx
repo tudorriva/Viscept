@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, type HTMLMotionProps } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
-interface GradientBorderCardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface GradientBorderCardProps extends HTMLMotionProps<'div'> {
   /** Animate border glow on hover */
   glow?: boolean;
   /** p-px outer wrapper padding (1px border) */
@@ -44,7 +44,7 @@ export const GradientBorderCard: React.FC<GradientBorderCardProps> = ({
         background: gradients[gradient],
         padding: borderWidth,
       }}
-      {...(props as HTMLMotionProps<'div'>)}
+      {...props}
     >
       {children}
     </motion.div>

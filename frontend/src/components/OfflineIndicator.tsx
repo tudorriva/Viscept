@@ -22,11 +22,12 @@ export const OfflineIndicator: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (!isOnline) {
       setShow(true);
-      const timer = setTimeout(() => setShow(false), 5000);
-      return () => clearTimeout(timer);
+      timer = setTimeout(() => setShow(false), 5000);
     }
+    return () => clearTimeout(timer);
   }, [isOnline]);
 
   if (!show || isOnline) return null;

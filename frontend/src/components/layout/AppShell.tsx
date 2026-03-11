@@ -8,7 +8,7 @@ import { ExportPanel } from '../ai/ExportPanel';
 import { SettingsDialog } from '../ui/SettingsDialog';
 import { CommandPalette } from '../ui/CommandPalette';
 import type { ChatMessage, ChatSessionMeta, DiagramType } from '../../types/chat';
-import type { ValidationResult } from '../../types/vcm';
+import type { ValidationResult } from '../../utils/api';
 
 interface AppShellProps {
   /* Identity */
@@ -96,7 +96,6 @@ export const AppShell: React.FC<AppShellProps> = (props) => {
         isOllamaOnline={isOllamaOnline}
         currentModel={currentModel}
         aiStatus={aiStatus as 'idle' | 'thinking' | 'generating' | 'error' | 'success'}
-        onShowExamples={onShowExamples}
       />
 
       {/* Body: sidebar + workspace + AI panel */}

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Separator from '@radix-ui/react-separator';
 import {
-  X, Image, FileCode, FilePdf, Copy, Download, CheckCircle2,
+  X, Image, FileCode, FileText, Copy, Download, CheckCircle2,
 } from 'lucide-react';
 import { AnimatedButton } from '../ui/AnimatedButton';
 import { useUIStore } from '../../store/uiStore';
@@ -35,7 +35,7 @@ const OPTIONS = [
     id: 'pdf',
     label: 'PDF Document',
     description: 'Print-ready document',
-    icon: FilePdf,
+    icon: FileText,
     gradient: 'linear-gradient(135deg, #ff7ad9, #6a5cff)',
   },
   {

@@ -82,6 +82,7 @@ export const useProjects = () => {
         loadProjects();
         return copy;
       }
+      return undefined;
     },
     [loadProjects]
   );

@@ -7,7 +7,7 @@ import { GenerationProgress } from './GenerationProgress';
 import { ModelSelector } from './ModelSelector';
 import { ValidationResults } from './ValidationResults';
 import type { ChatMessage, DiagramType } from '../../types/chat';
-import type { ValidationResult } from '../../types/vcm';
+import type { ValidationResult } from '../../utils/api';
 
 interface AIPanelProps {
   /* Chat */

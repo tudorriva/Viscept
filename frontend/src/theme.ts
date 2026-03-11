@@ -43,6 +43,13 @@ export const theme = {
       strong: 'rgba(255,255,255,0.22)',   /* --border-strong */
     },
   },
+  shadows: {
+    sm:  '0 1px 4px rgba(0,0,0,0.3)',
+    md:  '0 4px 16px rgba(0,0,0,0.4)',
+    lg:  '0 8px 32px rgba(0,0,0,0.5)',
+    xl:  '0 16px 64px rgba(0,0,0,0.6)',
+    glow:'0 0 20px rgba(106,92,255,0.4)',
+  },
 } as const;
 
 export type Theme = typeof theme;
