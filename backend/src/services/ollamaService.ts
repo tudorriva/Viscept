@@ -16,9 +16,11 @@ const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
 const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'moondream:latest';
 const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || '300000', 10);
+const OLLAMA_MODIFY_TIMEOUT = parseInt(process.env.OLLAMA_MODIFY_TIMEOUT || '600000', 10); // 10 min for modifications
 const STRICT_MODE = process.env.STRICT_MODE === 'true';
-const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_OUTPUT_LENGTH || '10000', 10);
+const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_OUTPUT_LENGTH || '15000', 10);
 const MAX_VALIDATION_RETRIES = parseInt(process.env.MAX_VALIDATION_RETRIES || '2', 10);
+const NUM_CTX = parseInt(process.env.OLLAMA_NUM_CTX || '8192', 10);
 
 /**
  * Build system prompt for the LLM based on diagram type.
@@ -34,6 +36,8 @@ RULES:
 - For flowcharts use: A["Label"] --> B["Label"] or A -->|"edge label"| B
 - For erDiagram use: TableA ||--o{ TableB : "relationship"
 - Never mix flowchart arrows (-->) with erDiagram syntax.
+- LAYOUT: For complex diagrams with many nodes, use subgraph blocks to group related services together. Set the direction with TB (top-to-bottom) or LR (left-to-right). Keep the layout clean and readable.
+- READABILITY: Prefer short, clear labels. Keep edge labels concise (1-3 words). Avoid crossing arrows where possible.
 - Output code only.`,
       plantuml: `You are a code generator. Output ONLY valid PlantUML code. No explanations, no prose, no markdown fences. Start with @startuml and end with @enduml. Every line must be valid PlantUML syntax. Output code only.`,
       dbml: `You are a code generator. Output ONLY valid DBML code for database schemas. No explanations, no prose, no markdown fences. Start with Table definitions. Every line must be valid DBML syntax. Output code only.`,
@@ -247,6 +251,7 @@ export async function generateWithOllama(
         system: systemPrompt,
         stream: false,
         temperature: 0.3,
+        options: { num_ctx: NUM_CTX },
       },
       {
         timeout: OLLAMA_TIMEOUT,
@@ -311,6 +316,7 @@ export async function correctWithOllama(
         system: systemPrompt,
         stream: false,
         temperature: 0.2, // Even lower for corrections
+        options: { num_ctx: NUM_CTX },
       },
       {
         timeout: OLLAMA_TIMEOUT,
@@ -443,9 +449,11 @@ function buildModificationSystemPrompt(diagramType: string): string {
 
 RULES:
 - Output ONLY the updated ${label} code.
-- Modify the existing code — do NOT rewrite from scratch.
+- Modify the existing code — do NOT rewrite from scratch unless the user explicitly asks for a full redesign.
 - Preserve the overall structure, styling, and layout of the original.
 - Only add, remove, or change the specific elements the user asked about.
+- Keep the diagram readable and well-organized. Use subgraphs for grouping if appropriate.
+- Prefer short labels and concise edge annotations.
 - No explanations, no prose, no markdown fences, no comments.
 - Output code only.`;
 }
@@ -481,9 +489,10 @@ export async function modifyDiagramWithOllama(
         system: systemPrompt,
         stream: false,
         temperature: 0.25,
+        options: { num_ctx: NUM_CTX },
       },
       {
-        timeout: OLLAMA_TIMEOUT,
+        timeout: OLLAMA_MODIFY_TIMEOUT,
         headers: { 'Content-Type': 'application/json' },
       },
     );
@@ -499,13 +508,10 @@ export async function modifyDiagramWithOllama(
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('[Ollama] Modification error:', error instanceof Error ? error.message : String(error));
-    // Return the original code if modification fails
-    return {
-      code: currentCode,
-      language: diagramType,
-      timestamp: new Date().toISOString(),
-    };
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Ollama] Modification error:', errMsg);
+    // Propagate error so the frontend can show it to the user
+    throw new Error(`Diagram modification failed: ${errMsg}`);
   }
 }
 

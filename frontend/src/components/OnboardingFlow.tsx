@@ -19,7 +19,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ isOpen, onClose 
       content: (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            {{
+            {[{
               icon: Code,
               label: 'Mermaid',
             },
@@ -51,7 +51,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ isOpen, onClose 
       description: 'Everything you need to create professional diagrams',
       content: (
         <div className="space-y-3">
-          {{
+          {[{
             icon: Eye,
             title: 'Live Preview',
             desc: 'See changes in real-time',
@@ -96,7 +96,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ isOpen, onClose 
       description: 'Learn the basics in 2 minutes',
       content: (
         <div className="space-y-4">
-          {{
+          {[{
             num: 1,
             title: 'Write or Paste',
             desc: 'Describe your diagram in the chat panel',
@@ -144,7 +144,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ isOpen, onClose 
       description: 'Start with a ready-made example',
       content: (
         <div className="space-y-3">
-          {{
+          {[{
             icon: GitBranch,
             label: 'Authentication Flow',
             desc: 'User login and registration',

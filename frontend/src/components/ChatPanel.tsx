@@ -1,13 +1,9 @@
 /**
- * ChatPanel v2.0 — Full conversation interface for chat-based diagram generation.
- *
- * Displays the message history (user + assistant), a message input, and action
- * buttons.  The diagram type is auto-detected on the first message and locked
- * for the duration of the chat.
+ * ChatPanel v2.0 — Professional conversation interface for iterative diagram editing.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, RotateCcw, BookOpen, Loader, Bot, User } from 'lucide-react';
+import { Send, RotateCcw, BookOpen, Bot, User, Sparkles, FileCode2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Icon } from './Icon';
 import { Wordmark } from '../assets/logos';
 import { theme } from '../theme';
@@ -36,16 +32,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 140) + 'px';
     }
   }, [input]);
 
@@ -68,109 +62,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div
       className="flex flex-col h-full"
-      style={{
-        background: `linear-gradient(to bottom, ${theme.colors.bg.primary}, ${theme.colors.bg.secondary})`,
-      }}
+      style={{ backgroundColor: theme.colors.bg.primary }}
     >
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {isEmpty && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4 gap-6">
-            <div className="mb-2">
-              <Wordmark size={20} />
-            </div>
-            <p className="text-sm" style={{ color: theme.colors.text.secondary }}>
-              Describe the diagram you want to create. I'll generate it and you can refine it
-              through conversation.
-            </p>
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        {isEmpty ? (
+          <EmptyState
+            diagramType={diagramType}
+            onLoadDemo={onLoadDemo}
+            onShowExamples={onShowExamples}
+          />
+        ) : (
+          <div className="space-y-3">
+            {messages.map((msg) => (
+              <MessageBubble key={msg.id} message={msg} />
+            ))}
 
-            {/* Diagram type badge */}
-            {diagramType && (
-              <div
-                className="px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider"
-                style={{
-                  backgroundColor: `${theme.colors.accent.primary}20`,
-                  color: theme.colors.accent.primary,
-                  border: `1px solid ${theme.colors.accent.primary}40`,
-                }}
-              >
-                {diagramType}
-              </div>
-            )}
-
-            {/* Quick actions */}
-            <div className="space-y-2 w-full max-w-xs mt-2">
-              <button
-                onClick={onLoadDemo}
-                className="w-full py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2 border"
-                style={{
-                  backgroundColor: theme.colors.bg.tertiary,
-                  color: theme.colors.text.primary,
-                  borderColor: theme.colors.border.medium,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${theme.colors.accent.secondary}20`;
-                  e.currentTarget.style.borderColor = theme.colors.accent.secondary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
-                  e.currentTarget.style.borderColor = theme.colors.border.medium;
-                }}
-              >
-                <Icon name="docs" size={14} />
-                Load Demo
-              </button>
-
-              <button
-                onClick={onShowExamples}
-                className="w-full py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2 border"
-                style={{
-                  backgroundColor: theme.colors.bg.tertiary,
-                  color: theme.colors.text.primary,
-                  borderColor: theme.colors.border.medium,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${theme.colors.accent.primary}20`;
-                  e.currentTarget.style.borderColor = theme.colors.accent.primary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
-                  e.currentTarget.style.borderColor = theme.colors.border.medium;
-                }}
-              >
-                <BookOpen size={14} />
-                Examples Gallery
-              </button>
-            </div>
-          </div>
-        )}
-
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
-        ))}
-
-        {/* Loading indicator */}
-        {isLoading && (
-          <div className="flex items-start gap-3 px-2">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-              style={{
-                background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
-              }}
-            >
-              <Bot size={14} color="#fff" />
-            </div>
-            <div
-              className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm flex items-center gap-2"
-              style={{
-                backgroundColor: theme.colors.bg.tertiary,
-                color: theme.colors.text.secondary,
-                border: `1px solid ${theme.colors.border.medium}`,
-              }}
-            >
-              <Loader size={14} className="animate-spin" />
-              Generating diagram...
-            </div>
+            {isLoading && <TypingIndicator />}
           </div>
         )}
 
@@ -179,29 +87,39 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* Input area */}
       <div
-        className="border-t px-4 py-3"
-        style={{ borderColor: theme.colors.border.medium }}
+        className="px-3 pt-2 pb-3"
+        style={{
+          borderTop: `1px solid ${theme.colors.border.medium}`,
+          backgroundColor: theme.colors.bg.secondary,
+        }}
       >
-        {/* Diagram type indicator */}
+        {/* Status row */}
         {diagramType && messages.length > 0 && (
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 px-1">
             <div
-              className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider"
               style={{
-                backgroundColor: `${theme.colors.accent.primary}15`,
+                backgroundColor: `${theme.colors.accent.primary}10`,
                 color: theme.colors.accent.primary,
               }}
             >
+              <FileCode2 size={10} />
               {diagramType}
             </div>
             {messages.length >= 2 && (
               <button
                 onClick={onRegenerate}
                 disabled={isLoading}
-                className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-all"
+                className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-colors"
                 style={{
-                  color: theme.colors.text.tertiary,
-                  opacity: isLoading ? 0.5 : 1,
+                  color: theme.colors.text.muted,
+                  opacity: isLoading ? 0.4 : 0.7,
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLoading) e.currentTarget.style.color = theme.colors.accent.primary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = theme.colors.text.muted;
                 }}
                 title="Regenerate last response"
               >
@@ -220,20 +138,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               isEmpty
-                ? 'Describe a diagram to create...'
-                : 'Ask me to modify the diagram...'
+                ? 'Describe the diagram you want...'
+                : 'Describe changes to the diagram...'
             }
             rows={1}
-            className="flex-1 p-3 rounded-xl resize-none focus:outline-none text-sm"
+            className="flex-1 py-2.5 px-3 rounded-lg resize-none focus:outline-none text-sm leading-relaxed"
             style={{
               backgroundColor: theme.colors.bg.tertiary,
               color: theme.colors.text.primary,
               border: `1px solid ${theme.colors.border.medium}`,
-              maxHeight: 160,
+              maxHeight: 140,
+              fontFamily: 'Inter, -apple-system, sans-serif',
             }}
             onFocus={(e) => {
               e.currentTarget.style.borderColor = theme.colors.accent.primary;
-              e.currentTarget.style.boxShadow = `0 0 0 3px ${theme.colors.accent.primary}20`;
+              e.currentTarget.style.boxShadow = `0 0 0 2px ${theme.colors.accent.primary}15`;
             }}
             onBlur={(e) => {
               e.currentTarget.style.borderColor = theme.colors.border.medium;
@@ -243,7 +162,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="p-3 rounded-xl transition-all flex-shrink-0"
+            className="p-2.5 rounded-lg transition-all flex-shrink-0"
             style={{
               background:
                 !input.trim() || isLoading
@@ -251,61 +170,150 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   : `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
               color: !input.trim() || isLoading ? theme.colors.text.muted : '#fff',
               cursor: !input.trim() || isLoading ? 'not-allowed' : 'pointer',
-              opacity: !input.trim() || isLoading ? 0.6 : 1,
+              opacity: !input.trim() || isLoading ? 0.5 : 1,
             }}
             title="Send message (Enter)"
           >
-            {isLoading ? (
-              <Loader size={18} className="animate-spin" />
-            ) : (
-              <Send size={18} />
-            )}
+            <Send size={16} />
           </button>
         </div>
 
-        {/* Keyboard hint */}
         <p
-          className="text-[10px] text-center mt-2"
+          className="text-[9px] text-center mt-1.5 select-none"
           style={{ color: theme.colors.text.muted }}
         >
-          <kbd
-            className="px-1.5 py-0.5 rounded font-mono text-[10px]"
-            style={{
-              backgroundColor: theme.colors.bg.primary,
-              color: theme.colors.text.tertiary,
-              border: `1px solid ${theme.colors.border.medium}`,
-            }}
-          >
+          <kbd className="px-1 py-px rounded font-mono" style={{ backgroundColor: `${theme.colors.bg.tertiary}80`, border: `1px solid ${theme.colors.border.medium}` }}>
             Enter
           </kbd>
-          {' '}to send &nbsp;·&nbsp;{' '}
-          <kbd
-            className="px-1.5 py-0.5 rounded font-mono text-[10px]"
-            style={{
-              backgroundColor: theme.colors.bg.primary,
-              color: theme.colors.text.tertiary,
-              border: `1px solid ${theme.colors.border.medium}`,
-            }}
-          >
+          {' send · '}
+          <kbd className="px-1 py-px rounded font-mono" style={{ backgroundColor: `${theme.colors.bg.tertiary}80`, border: `1px solid ${theme.colors.border.medium}` }}>
             Shift+Enter
           </kbd>
-          {' '}for new line
+          {' new line'}
         </p>
       </div>
     </div>
   );
 };
 
+// ── Empty State ───────────────────────────────────────────────────────────────
+
+const EmptyState: React.FC<{
+  diagramType: DiagramType | null;
+  onLoadDemo: () => void;
+  onShowExamples: () => void;
+}> = ({ diagramType, onLoadDemo, onShowExamples }) => (
+  <div className="flex flex-col items-center justify-center h-full text-center px-6 gap-5">
+    <div className="mb-1">
+      <Wordmark size={18} />
+    </div>
+
+    <p className="text-xs leading-relaxed max-w-[240px]" style={{ color: theme.colors.text.tertiary }}>
+      Describe the diagram you need and I'll generate it. Then refine it through conversation.
+    </p>
+
+    {diagramType && (
+      <span
+        className="px-2.5 py-1 rounded text-[10px] font-semibold uppercase tracking-wider"
+        style={{
+          backgroundColor: `${theme.colors.accent.primary}10`,
+          color: theme.colors.accent.primary,
+          border: `1px solid ${theme.colors.accent.primary}25`,
+        }}
+      >
+        {diagramType}
+      </span>
+    )}
+
+    <div className="flex gap-2 w-full max-w-[240px]">
+      <button
+        onClick={onLoadDemo}
+        className="flex-1 py-2 rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-1.5"
+        style={{
+          backgroundColor: theme.colors.bg.tertiary,
+          color: theme.colors.text.secondary,
+          border: `1px solid ${theme.colors.border.medium}`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = theme.colors.accent.secondary;
+          e.currentTarget.style.color = theme.colors.text.primary;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = theme.colors.border.medium;
+          e.currentTarget.style.color = theme.colors.text.secondary;
+        }}
+      >
+        <Icon name="docs" size={12} />
+        Demo
+      </button>
+      <button
+        onClick={onShowExamples}
+        className="flex-1 py-2 rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-1.5"
+        style={{
+          backgroundColor: theme.colors.bg.tertiary,
+          color: theme.colors.text.secondary,
+          border: `1px solid ${theme.colors.border.medium}`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = theme.colors.accent.primary;
+          e.currentTarget.style.color = theme.colors.text.primary;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = theme.colors.border.medium;
+          e.currentTarget.style.color = theme.colors.text.secondary;
+        }}
+      >
+        <BookOpen size={12} />
+        Examples
+      </button>
+    </div>
+  </div>
+);
+
+// ── Typing Indicator ──────────────────────────────────────────────────────────
+
+const TypingIndicator: React.FC = () => (
+  <div className="flex items-start gap-2.5 px-1 animate-message-in">
+    <div
+      className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+      style={{
+        background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
+      }}
+    >
+      <Sparkles size={11} color="#fff" />
+    </div>
+    <div
+      className="px-3.5 py-2.5 rounded-xl rounded-tl-sm flex items-center gap-1.5"
+      style={{
+        backgroundColor: theme.colors.bg.tertiary,
+        border: `1px solid ${theme.colors.border.medium}`,
+        color: theme.colors.text.muted,
+      }}
+    >
+      <span className="typing-dot" />
+      <span className="typing-dot" />
+      <span className="typing-dot" />
+    </div>
+  </div>
+);
+
 // ── Message Bubble ────────────────────────────────────────────────────────────
+
+const COLLAPSE_THRESHOLD = 300; // chars before we truncate
 
 const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
   const isUser = message.role === 'user';
+  const isLong = message.content.length > COLLAPSE_THRESHOLD;
+  const [expanded, setExpanded] = useState(false);
+
+  const bubbleBg = isUser ? `${theme.colors.accent.primary}12` : theme.colors.bg.tertiary;
+  const bubbleBorder = isUser ? `${theme.colors.accent.primary}20` : theme.colors.border.medium;
 
   return (
-    <div className={`flex items-start gap-3 px-2 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex items-start gap-2.5 px-1 animate-message-in ${isUser ? 'flex-row-reverse' : ''}`}>
       {/* Avatar */}
       <div
-        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
         style={{
           background: isUser
             ? theme.colors.bg.tertiary
@@ -314,32 +322,67 @@ const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
         }}
       >
         {isUser ? (
-          <User size={14} color={theme.colors.text.secondary} />
+          <User size={11} color={theme.colors.text.tertiary} />
         ) : (
-          <Bot size={14} color="#fff" />
+          <Bot size={11} color="#fff" />
         )}
       </div>
 
       {/* Bubble */}
       <div
-        className={`max-w-[85%] px-4 py-3 text-sm leading-relaxed ${
-          isUser ? 'rounded-2xl rounded-tr-sm' : 'rounded-2xl rounded-tl-sm'
+        className={`max-w-[82%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
+          isUser ? 'rounded-xl rounded-tr-sm' : 'rounded-xl rounded-tl-sm'
         }`}
         style={{
-          backgroundColor: isUser
-            ? `${theme.colors.accent.primary}15`
-            : theme.colors.bg.tertiary,
+          backgroundColor: bubbleBg,
           color: theme.colors.text.primary,
-          border: `1px solid ${
-            isUser ? `${theme.colors.accent.primary}30` : theme.colors.border.medium
-          }`,
+          border: `1px solid ${bubbleBorder}`,
         }}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        {/* Collapsible content */}
+        <div style={{ position: 'relative' }}>
+          <p
+            className="whitespace-pre-wrap"
+            style={{
+              maxHeight: isLong && !expanded ? '108px' : 'none',
+              overflow: 'hidden',
+            }}
+          >
+            {message.content}
+          </p>
+          {/* Fade gradient when collapsed */}
+          {isLong && !expanded && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: '40px',
+                background: `linear-gradient(to bottom, transparent, ${bubbleBg})`,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+        </div>
 
-        {/* Timestamp */}
+        {/* Expand / collapse toggle */}
+        {isLong && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 mt-1.5 text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity"
+            style={{ color: theme.colors.accent.primary }}
+          >
+            {expanded ? (
+              <><ChevronUp size={12} /> Show less</>
+            ) : (
+              <><ChevronDown size={12} /> Show more</>
+            )}
+          </button>
+        )}
+
         <p
-          className="text-[10px] mt-1.5"
+          className="text-[9px] mt-1 opacity-60"
           style={{ color: theme.colors.text.muted }}
         >
           {new Date(message.timestamp).toLocaleTimeString([], {

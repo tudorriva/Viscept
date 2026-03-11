@@ -58,35 +58,37 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   return (
     <div
-      className="w-64 border-r flex flex-col"
+      className="w-60 border-r flex flex-col"
       style={{
         backgroundColor: theme.colors.bg.secondary,
         borderColor: theme.colors.border.medium,
       }}
     >
       {/* Header */}
-      <div className="p-4 border-b" style={{ borderColor: theme.colors.border.medium }}>
-        <div className="mb-3">
-          <Wordmark size={18} />
+      <div className="px-3 pt-3 pb-2 border-b" style={{ borderColor: theme.colors.border.medium }}>
+        <div className="mb-2.5">
+          <Wordmark size={16} />
         </div>
         <button
           onClick={onCreateChat}
-          className="w-full py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 border"
+          className="w-full py-1.5 px-2.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 border"
           style={{
             backgroundColor: theme.colors.bg.tertiary,
-            color: theme.colors.text.primary,
+            color: theme.colors.text.secondary,
             borderColor: theme.colors.border.medium,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = `${theme.colors.accent.primary}20`;
+            e.currentTarget.style.backgroundColor = `${theme.colors.accent.primary}15`;
             e.currentTarget.style.borderColor = theme.colors.accent.primary;
+            e.currentTarget.style.color = theme.colors.text.primary;
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
             e.currentTarget.style.borderColor = theme.colors.border.medium;
+            e.currentTarget.style.color = theme.colors.text.secondary;
           }}
         >
-          <Plus size={16} />
+          <Plus size={14} />
           New Chat
         </button>
       </div>
@@ -94,17 +96,17 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       {/* Chat list */}
       <div className="flex-1 overflow-y-auto">
         {chatList.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="p-6 text-center">
             <MessageSquare
-              size={32}
-              className="mx-auto mb-3"
+              size={24}
+              className="mx-auto mb-2"
               style={{ color: theme.colors.text.muted }}
             />
-            <p className="text-sm" style={{ color: theme.colors.text.tertiary }}>
+            <p className="text-xs" style={{ color: theme.colors.text.tertiary }}>
               No chats yet
             </p>
-            <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
-              Start a new conversation to create a diagram
+            <p className="text-[10px] mt-0.5" style={{ color: theme.colors.text.muted }}>
+              Start a conversation to create a diagram
             </p>
           </div>
         ) : (
@@ -253,10 +255,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       {/* Footer */}
       <div
-        className="p-3 border-t text-center"
+        className="px-3 py-2 border-t text-center"
         style={{ borderColor: theme.colors.border.medium }}
       >
-        <p className="text-[10px]" style={{ color: theme.colors.text.muted }}>
+        <p className="text-[9px]" style={{ color: theme.colors.text.muted }}>
           v2.0.0 · Open Source
         </p>
       </div>
