@@ -11,7 +11,13 @@ export interface OllamaResponse {
   timestamp: string;
 }
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+function normalizeOllamaBaseUrl(raw?: string): string {
+  const value = (raw || 'http://localhost:11434').trim().replace(/\/+$/, '');
+  // Accept either http://host:11434 or http://host:11434/api/generate
+  return value.replace(/\/api\/(generate|chat)$/i, '');
+}
+
+const OLLAMA_BASE_URL = normalizeOllamaBaseUrl(process.env.OLLAMA_URL);
 const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
 const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b';
@@ -272,7 +278,11 @@ export async function generateWithOllama(
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('[Ollama] Error:', error instanceof Error ? error.message : String(error));
+    if (axios.isAxiosError(error)) {
+      console.error('[Ollama] Error:', error.message, 'status=', error.response?.status, 'data=', error.response?.data);
+    } else {
+      console.error('[Ollama] Error:', error instanceof Error ? error.message : String(error));
+    }
 
     // Return fallback template
     console.log(`[Ollama] Falling back to template for ${diagramType}`);
@@ -335,7 +345,11 @@ export async function correctWithOllama(
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('[Ollama] Correction error:', error instanceof Error ? error.message : String(error));
+    if (axios.isAxiosError(error)) {
+      console.error('[Ollama] Correction error:', error.message, 'status=', error.response?.status, 'data=', error.response?.data);
+    } else {
+      console.error('[Ollama] Correction error:', error instanceof Error ? error.message : String(error));
+    }
     // Return the original code if correction fails
     return {
       code: originalCode,
@@ -509,7 +523,11 @@ export async function modifyDiagramWithOllama(
     };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error('[Ollama] Modification error:', errMsg);
+    if (axios.isAxiosError(error)) {
+      console.error('[Ollama] Modification error:', errMsg, 'status=', error.response?.status, 'data=', error.response?.data);
+    } else {
+      console.error('[Ollama] Modification error:', errMsg);
+    }
     // Propagate error so the frontend can show it to the user
     throw new Error(`Diagram modification failed: ${errMsg}`);
   }
@@ -565,7 +583,11 @@ No explanations. JSON only.`;
     console.warn(`[Ollama] Unknown classification "${type}", defaulting to mermaid`);
     return 'mermaid';
   } catch (error) {
-    console.error('[Ollama] Classification error:', error instanceof Error ? error.message : String(error));
+    if (axios.isAxiosError(error)) {
+      console.error('[Ollama] Classification error:', error.message, 'status=', error.response?.status, 'data=', error.response?.data);
+    } else {
+      console.error('[Ollama] Classification error:', error instanceof Error ? error.message : String(error));
+    }
 
     // Simple heuristic fallback
     const lower = prompt.toLowerCase();

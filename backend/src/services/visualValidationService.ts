@@ -16,7 +16,12 @@ import path from 'path';
 
 // ── Configuration ──────────────────────────────────────────────────────────────
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+function normalizeOllamaBaseUrl(raw?: string): string {
+  const value = (raw || 'http://localhost:11434').trim().replace(/\/+$/, '');
+  return value.replace(/\/api\/(generate|chat)$/i, '');
+}
+
+const OLLAMA_BASE_URL = normalizeOllamaBaseUrl(process.env.OLLAMA_URL);
 const VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'granite3.2-vision:2b';
 const CODER_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b-instruct-q4_K_M';
 const VLM_TIMEOUT = parseInt(process.env.VLM_TIMEOUT || '300000', 10);
