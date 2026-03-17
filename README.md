@@ -1,8 +1,9 @@
 <div align="center">
-<img width="612" height="200" alt="rsz_chatgpt_image_oct_29_2025_06_20_28_pm-removebg-preview" src="https://github.com/user-attachments/assets/1e4b824e-2fb5-4c5e-b9af-46e805e4bc4d" />
+<img width="612" height="200" alt="Viscept Logo" src="https://github.com/user-attachments/assets/1e4b824e-2fb5-4c5e-b9af-46e805e4bc4d" />
 
-<h1>Viscept: AI Diagram Builder</h1>
-<p>Generate professional diagrams from natural language. Rendering happens in the browser; AI generation runs locally via Ollama.</p>
+<h1>🎨 Viscept: AI Diagram Builder</h1>
+<p><strong>Transform natural language into stunning diagrams in seconds.</strong></p>
+<p>Ultra-fast, privacy-first diagram generation with local AI. No cloud uploads. Pure performance.</p>
 
 <!-- Badges -->
 <img alt="Build" src="https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge" />
@@ -14,315 +15,516 @@
 <img alt="Docker" src="https://img.shields.io/badge/docker-supported-2496ed?style=for-the-badge" />
 <img alt="LLM" src="https://img.shields.io/badge/llm-Ollama-informational?style=for-the-badge" />
 
-<p>
-<a href="#quick-start">Quick Start</a> •
-<a href="#features">Features</a> •
-<a href="#architecture">Architecture</a> •
-<a href="#api-endpoints">API</a> •
-<a href="#configuration">Configuration</a> •
-<a href="#project-structure">Project Structure</a> •
-<a href="#development">Development</a> •
-<a href="#troubleshooting">Troubleshooting</a>
-</p>
+<br />
+
+**[🚀 Quick Start](#quick-start) • [✨ Features](#features) • [🏗️ Architecture](#architecture) • [📡 API](#api-endpoints) • [⚙️ Config](#configuration) • [🗂️ Structure](#project-structure)**
+
 </div>
 
 ---
 
-## Overview
+## 🌟 What is Viscept?
 
-Viscept is a local-first web application that converts natural-language prompts into diagram code and renders the result instantly. It supports Mermaid, DBML, Graphviz (DOT), and PlantUML (via conversion/optional server). The backend integrates with Ollama so models run on your machine.
+**Viscept** is a blazing-fast, local-first web application that turns plain English (or any language) into production-ready diagram code. No subscriptions. No rate limits. No data sent to the cloud. Everything runs on your machine with Ollama.
 
-- Frontend: React + Vite + Tailwind + TypeScript
-- Backend: Node.js + Express + TypeScript
-- AI: Ollama (local LLM inference)
+### ⚡ The Tech Stack
 
----
+- **Frontend**: React 18 + Vite + Tailwind CSS + TypeScript (instant rendering)
+- **Backend**: Express + Node.js 18+ + TypeScript (zero-latency API)
+- **Brain**: Ollama (local LLM inference on your GPU/CPU)
+- **Containerization**: Docker (one-command deployment)
 
-## Features
+## ✨ Features That Matter
 
-- Natural-language prompts with fast generation
-- Four diagram languages: Mermaid, DBML, Graphviz (DOT), PlantUML
-- Live preview panel with immediate re-render
-- Code editor with formatting
-- Version history (up to 20) stored locally
-- Export to PNG, SVG, and PDF
-- Save/Load projects as JSON
-- Keyboard shortcuts for common actions
-- Docker support
+| Feature | Benefit |
+|---------|---------|
+| 🎯 **Natural Language Input** | Just describe your diagram. AI handles the rest. |
+| 🚀 **4 Diagram Languages** | Mermaid • DBML • Graphviz (DOT) • PlantUML |
+| 👁️ **Live Preview** | See changes in real-time as you edit |
+| 💾 **Local-First Storage** | Version history (20+ versions), projects saved as JSON |
+| 🎨 **Export Everything** | PNG • SVG • PDF with one click |
+| ⚡ **No Cloud Required** | Everything runs on your machine. Zero latency. |
+| 🔒 **Privacy Built-In** | Your diagrams never leave your device |
+| ⌨️ **Power User Shortcuts** | Ctrl+Enter (Generate), Ctrl+S (Save), Ctrl+Shift+E (Export SVG) |
+| 🖥️ **Remote Access** | Access from another device via Tailscale or LAN |
 
----
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18 or newer
-- Ollama installed and running locally
-- Docker (optional)
+- **Node.js**: 18 or newer
+- **Ollama**: [Download here](https://ollama.ai) — required for AI generation
+- **Docker** (optional): For containerized deployment
 
-### 1) Start Ollama
+### Option 1: Local Development (Fastest Setup)
 
 ```bash
-ollama pull mistral
+# 1. Start Ollama on your machine
+ollama pull qwen2.5-coder:7b-instruct-q4_K_M
 ollama serve
-```
 
-Ollama listens on http://localhost:11434.
-
-### 2) Start the backend
-
-```bash
+# 2. In a new terminal, start the backend
 cd backend
 npm install
 npm run dev
-```
 
-Backend runs at http://localhost:3001.
-
-### 3) Start the frontend
-
-```bash
+# 3. In another terminal, start the frontend
 cd frontend
 npm install
 npm run dev
+
+# 4. Open your browser
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:3001/api/health
 ```
 
-Open http://localhost:3000 in your browser.
-
-### Docker (optional)
+### Option 2: Docker (All-in-One)
 
 ```bash
-# Ensure Ollama is running on the host
+# Ensure Ollama is running on your host machine
 ollama serve
 
-# From project root
-docker-compose up --build
+# From project root, spin everything up
+docker compose up --build -d
+
+# Done! Access:
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:3001/api/health
 ```
 
-- Frontend: http://localhost:3000  
-- Backend: http://localhost:3001
+### Option 3: Remote Access via Tailscale (From Another Device)
 
-If Docker needs to reach Ollama on the host:
-- macOS/Windows: OLLAMA_URL=http://host.docker.internal:11434/api/generate
-- Linux: OLLAMA_URL=http://172.17.0.1:11434/api/generate
+```bash
+# On host machine:
+1. Install Tailscale: tailscale.com
+2. tailscale up (log in with your account)
+3. tailscale ip -4 (note your Tailscale IP, e.g., 100.x.x.x)
+4. docker compose up --build -d (start the app)
+
+# On remote device:
+1. Install Tailscale, log in with same account
+2. Open browser: http://100.x.x.x:3000
+3. You're in! Full AI generation works over the VPN.
+```
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
-ai-diagram-builder/
-├── frontend/   React + Vite (TypeScript)
-└── backend/    Express API (TypeScript)  →  Ollama (local LLM)
+┌─────────────────────────────────────────────────────────┐
+│                   Your Browser                          │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  React UI (Vite)                                │   │
+│  │  • Chat interface                               │   │
+│  │  • Live diagram preview                         │   │
+│  │  • Code editor with highlighting                │   │
+│  └────────────────┬─────────────────────────────────┘   │
+└─────────────────┼──────────────────────────────────────┘
+                  │ HTTP/JSON
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│           Backend (Express + Node.js)                   │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  /api/generate    → Generate from prompt         │   │
+│  │  /api/chat/message → Chat-based modifications   │   │
+│  │  /api/validate    → Visual validation (VLM)     │   │
+│  │  /api/format      → Code formatting             │   │
+│  │  /api/health      → System status               │   │
+│  └────────────────┬─────────────────────────────────┘   │
+└─────────────────┼──────────────────────────────────────┘
+                  │
+                  ▼
+      ┌───────────────────────────┐
+      │   Ollama (Local LLM)      │
+      │  • qwen2.5-coder (7B)     │
+      │  • granite3.2-vision (2B) │
+      └───────────────────────────┘
 ```
 
-Key components:
-- Rendering: [`frontend/src/components/DiagramPreview.tsx`](frontend/src/components/DiagramPreview.tsx)
-- API client: [`frontend/src/utils/api.ts`](frontend/src/utils/api.ts)
-- Routes: [`backend/src/routes/diagramRoutes.ts`](backend/src/routes/diagramRoutes.ts)
-- Controllers: [`backend/src/controllers/diagramController.ts`](backend/src/controllers/diagramController.ts)
-- LLM service: [`backend/src/services/ollamaService.ts`](backend/src/services/ollamaService.ts)
-- Formatting service: [`backend/src/services/formatterService.ts`](backend/src/services/formatterService.ts)
-- Demo data: [`backend/src/services/demoService.ts`](backend/src/services/demoService.ts)
+### Key Components
+
+- **[`frontend/src/utils/api.ts`](frontend/src/utils/api.ts)**: API client with intelligent URL fallback for remote access
+- **[`frontend/src/components/ChatPanel.tsx`](frontend/src/components/ChatPanel.tsx)**: Chat interface for diagram conversations
+- **[`frontend/src/components/DiagramPreview.tsx`](frontend/src/components/DiagramPreview.tsx)**: Real-time diagram rendering
+- **[`backend/src/routes/diagramRoutes.ts`](backend/src/routes/diagramRoutes.ts)**: All endpoint definitions
+- **[`backend/src/controllers/diagramController.ts`](backend/src/controllers/diagramController.ts)**: Request handling and validation
+- **[`backend/src/services/ollamaService.ts`](backend/src/services/ollamaService.ts)**: AI generation engine
+- **[`backend/src/services/visualValidationService.ts`](backend/src/services/visualValidationService.ts)**: VLM-based diagram inspection
+- **[`backend/src/services/pipelineService.ts`](backend/src/services/pipelineService.ts)**: Self-correction loop (Generate → Render → Inspect → Correct)
+
+## 📖 How to Use
+
+### Basic Workflow
+
+1. **Select a Diagram Type** — Choose from Mermaid, DBML, Graphviz, or PlantUML
+2. **Describe Your Diagram** — Type in plain English (or any language)
+3. **Generate** — Press Ctrl+Enter or click the Generate button
+4. **Edit & Refine** — Modify the code or ask the AI to adjust it
+5. **Export** — Save as PNG, SVG, PDF, or copy the code
+
+### Pro Tips
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Enter` | Generate diagram |
+| `Ctrl+S` | Save project (JSON) |
+| `Ctrl+Shift+E` | Export as SVG |
+| `Ctrl+B` | Open command palette |
+
+### Example Prompts
+
+```
+"Create a flowchart for OAuth2 authentication flow"
+"Database schema for an e-commerce platform with users, products, orders"
+"System architecture diagram for a microservices API"
+"Class hierarchy for a C++ graphics engine"
+"State machine for a vending machine"
+```
 
 ---
 
-## Usage
+## 📡 API Endpoints
 
-1. Select a diagram type in the UI.
-2. Describe your diagram in plain language.
-3. Generate; the code and preview update instantly.
-4. Edit code manually if needed.
-5. Export (PNG/SVG/PDF) or Save the project as JSON.
+## 📡 API Endpoints
 
-Keyboard shortcuts:
-- Ctrl+Enter — Generate
-- Ctrl+S — Save project
-- Ctrl+Shift+E — Export SVG
+**Base URL**: `http://localhost:3001` (or your remote Tailscale IP)
 
----
+### 🔄 Core Endpoints
 
-## API Endpoints
+#### `POST /api/generate`
+Generate diagram code from a natural-language prompt.
 
-Base URL: http://localhost:3001
+```bash
+curl -X POST http://localhost:3001/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Flowchart for user login with 2FA",
+    "diagramType": "mermaid"
+  }'
+```
 
-### POST /api/generate
-Generate diagram code from a prompt.
-
-Request:
+**Response:**
 ```json
 {
-  "prompt": "Create a flowchart for user login",
-  "diagramType": "mermaid"
-}
-```
-
-Response:
-```json
-{
-  "code": "graph TD\n  A[Start] --> B[Enter Credentials]\n  ...",
+  "code": "graph TD\n  A[Start] --> B{Credentials OK?}\n  B -->|Yes| C[2FA Check]\n  ...",
   "language": "mermaid",
-  "timestamp": "2025-01-20T10:00:00Z"
+  "timestamp": "2026-03-17T12:00:00Z"
 }
 ```
 
-### POST /api/format
-Format diagram code.
+#### `POST /api/chat/message`
+Generate or modify diagrams conversationally.
 
-Request:
+```bash
+curl -X POST http://localhost:3001/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chatId": "chat-123",
+    "message": "Add a database connection check",
+    "diagramType": "mermaid",
+    "currentDiagramCode": "graph TD\n  A[Start] --> B[Login]",
+    "isFirstMessage": false
+  }'
+```
+
+#### `POST /api/validate`
+Validate a diagram visually using AI (VLM).
+
+```bash
+curl -X POST http://localhost:3001/api/validate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "graph TD\n  A[Start] --> B[Login]",
+    "diagramType": "mermaid",
+    "originalPrompt": "User login flow"
+  }'
+```
+
+**Response** (validation result):
 ```json
 {
-  "code": "graph TD\nA-->B",
-  "language": "mermaid"
+  "status": "PASS",
+  "reason": "Diagram is clear and readable",
+  "confidence": 0.92,
+  "suggestions": []
 }
 ```
 
-Response:
+#### `POST /api/format`
+Format and normalize diagram code.
+
+```bash
+curl -X POST http://localhost:3001/api/format \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "graph TD\nA-->B",
+    "language": "mermaid"
+  }'
+```
+
+#### `GET /api/health`
+Check backend and Ollama status.
+
+```bash
+curl http://localhost:3001/api/health
+```
+
+**Response**:
 ```json
 {
-  "formatted": "graph TD\n  A --> B\n"
+  "status": "ok",
+  "ollama": {
+    "online": true,
+    "generativeModel": "qwen2.5-coder:7b-instruct-q4_K_M",
+    "visionModel": "granite3.2-vision:2b"
+  },
+  "vlm": {
+    "available": true,
+    "model": "granite3.2-vision:2b"
+  }
 }
 ```
 
-### GET /api/demo
-Return sample diagrams for each supported type.
+#### `GET /api/demo`
+Get sample diagrams for each supported type.
+
+```bash
+curl http://localhost:3001/api/demo
+```
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
-Backend (`backend/.env` or docker-compose):
+## ⚙️ Configuration
+
+### Backend Configuration
+
+Set these environment variables in your shell or in `backend/.env`:
 
 ```env
-OLLAMA_URL=http://localhost:11434/api/generate
-OLLAMA_MODEL=mistral
-OLLAMA_TIMEOUT=30000
+# Ollama connection
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder:7b-instruct-q4_K_M
+OLLAMA_VLM_MODEL=granite3.2-vision:2b
+OLLAMA_TIMEOUT=300000
+
+# Server
 PORT=3001
 NODE_ENV=development
+
+# Optional: PlantUML server (for PlantUML rendering)
 PLANTUML_SERVER=https://www.plantuml.com/plantuml/svg/
-STRICT_MODE=false
-MAX_OUTPUT_LENGTH=10000
+
+# Output limits
+MAX_OUTPUT_LENGTH=15000
+MAX_VALIDATION_RETRIES=2
 ```
 
-Frontend (Vite):
+**Docker users**: Edit `docker-compose.yml`:
+
+```yaml
+environment:
+  - OLLAMA_URL=http://host.docker.internal:11434  # macOS/Windows
+  # - OLLAMA_URL=http://172.17.0.1:11434          # Linux
+  - OLLAMA_MODEL=qwen2.5-coder:7b-instruct-q4_K_M
+  - OLLAMA_VLM_MODEL=granite3.2-vision:2b
+```
+
+### Frontend Configuration
+
+Frontend reads from Vite env vars:
 
 ```env
-VITE_API_URL=http://localhost:3001
+# Optional: Override backend API URL for production/remote access
+VITE_API_URL=http://100.x.x.x:3001  # Tailscale IP, for example
 ```
 
 ---
 
-## Project Structure
+## 🗂️ Project Structure
+
+## 🗂️ Project Structure
 
 ```
-frontend/
-  src/
-    components/
-      ChatPanel.tsx
-      CodeEditor.tsx
-      DiagramPreview.tsx
-      HistoryPanel.tsx
-      ControlPanel.tsx
-    utils/
-      api.ts
-      exporters.ts
-      converters.ts
-    main.tsx
-    index.css
-  vite.config.ts
-  tailwind.config.js
-
-backend/
-  src/
-    routes/diagramRoutes.ts
-    controllers/diagramController.ts
-    services/
-      ollamaService.ts
-      formatterService.ts
-      demoService.ts
-    middleware/errorHandler.ts
-    app.ts
-    server.ts
-
-templates/
-  prompts/...
-  samples/...
+viscept/
+├── frontend/                    # React + Vite frontend app
+│   ├── src/
+│   │   ├── components/         # React components (Chat, Editor, Preview, etc.)
+│   │   ├── hooks/              # Custom hooks (useChat, useSettings, etc.)
+│   │   ├── utils/
+│   │   │   ├── api.ts          # Backend API client
+│   │   │   ├── exporters.ts    # PNG/SVG/PDF export logic
+│   │   │   └── converters.ts   # DBML ↔ Mermaid conversions
+│   │   ├── App.tsx             # Main app entry point
+│   │   ├── main.tsx            # Vite entry
+│   │   └── index.css           # Tailwind + custom styles
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── tailwind.config.js
+│
+├── backend/                     # Express + Node.js backend
+│   ├── src/
+│   │   ├── routes/             # API endpoint definitions
+│   │   ├── controllers/        # Request handlers
+│   │   ├── services/
+│   │   │   ├── ollamaService.ts         # LLM generation
+│   │   │   ├── visualValidationService.ts # VLM inspection
+│   │   │   ├── pipelineService.ts       # Self-correction loop
+│   │   │   ├── renderingService.ts      # Diagram rendering
+│   │   │   ├── formatterService.ts      # Code formatting
+│   │   │   └── demoService.ts           # Sample diagrams
+│   │   ├── middleware/         # Error handling, CORS
+│   │   ├── app.ts              # Express setup
+│   │   └── server.ts           # Entry point
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── jest.config.js
+│
+├── templates/
+│   ├── prompts/                # Example prompts
+│   └── samples/                # Sample diagrams
+│
+├── docker-compose.yml          # All services
+├── Makefile                    # Build shortcuts
+└── README.md                   # You are here
 ```
-
-Additional documentation:
-- [QUICK_START.md](QUICK_START.md)
-- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
-- [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)
-- [FILE_INDEX.md](FILE_INDEX.md)
 
 ---
 
-## Development
+## 🚀 Development
 
-Install dependencies and run dev servers:
+### Installation
 
 ```bash
 # Backend
-cd backend && npm install && npm run dev
+cd backend && npm install
 
-# Frontend
-cd frontend && npm install && npm run dev
+# Frontend  
+cd frontend && npm install
 ```
 
-Build:
+### Running Locally
 
 ```bash
-make build
-# or
-npm run build --prefix frontend && npm run build --prefix backend
+# Terminal 1: Backend dev server
+cd backend && npm run dev
+
+# Terminal 2: Frontend dev server
+cd frontend && npm run dev
+
+# Terminal 3 (on host): Ollama
+ollama serve
 ```
 
-Tests:
+### Production Build
+
+```bash
+# Build everything
+make build
+
+# Or manually:
+npm run build --prefix frontend
+npm run build --prefix backend
+```
+
+### Testing
 
 ```bash
 cd backend && npm test
 ```
 
-Lint and format:
+### Code Quality
 
 ```bash
-# Frontend
-cd frontend && npm run lint && npm run format
-# Backend
-cd backend && npm run lint && npm run format
+# Format code
+make format
+
+# Lint
+make lint
 ```
 
 ---
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
-Cannot reach Ollama:
-- Ensure `ollama serve` is running.
-- Verify `OLLAMA_URL` points to the correct endpoint.
-- Test with: `curl http://localhost:11434/api/tags`.
+### "Cannot connect to Ollama"
 
-Diagram not rendering:
-- Check browser console for errors.
-- Validate syntax for the selected diagram type.
-- Use the Format button to normalize code.
+```bash
+# Check Ollama is running on port 11434
+curl http://localhost:11434/api/tags
 
-Docker cannot reach Ollama:
-- macOS/Windows: `http://host.docker.internal:11434/api/generate`
-- Linux: `http://172.17.0.1:11434/api/generate`
+# If not running, start it
+ollama serve
 
-Model performance:
-- Try a smaller model (for example `neural-chat`) if memory is limited.
+# Or pull a model first
+ollama pull qwen2.5-coder:7b-instruct-q4_K_M
+```
+
+### "500 error on /api/chat/message"
+
+Make sure your configured models exist:
+
+```bash
+ollama list
+# Should show:
+# qwen2.5-coder:7b-instruct-q4_K_M
+# granite3.2-vision:2b
+```
+
+### Docker Can't Reach Ollama
+
+**macOS/Windows**: Use `http://host.docker.internal:11434` (already set in compose)  
+**Linux**: Use `http://172.17.0.1:11434` — change this in `docker-compose.yml`
+
+### Rendering Fails (mmdc not found)
+
+This is okay! The app falls back to placeholder rendering. Diagrams still work fine in the browser preview.
 
 ---
 
-## License
+## 📚 Additional Resources
 
-MIT License. See the LICENSE file if included.
+- **[QUICK_START.md](QUICK_START.md)** — Fast setup guide
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** — Production deployment
+- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** — Technical deep dive
+- **[FILE_INDEX.md](FILE_INDEX.md)** — Complete file reference
+- **[Ollama Docs](https://ollama.ai)** — Learn about local LLMs
+- **[Mermaid Syntax](https://mermaid.js.org)** — Diagram language reference
 
 ---
 
-## Acknowledgments
+## 📄 License
 
-- Mermaid for client-side rendering
-- Ollama for local LLM inference
-- React, Vite, TypeScript, and Tailwind CSS for the web stack
+MIT License — See [LICENSE](LICENSE) for details. Use Viscept freely in personal and commercial projects.
+
+---
+
+## 🙏 Acknowledgments
+
+Viscept is built on the shoulders of giants:
+
+- **[Ollama](https://ollama.ai)** — Local LLM inference made easy
+- **[Mermaid](https://mermaid.js.org)** — Fantastic client-side diagram rendering
+- **[React](https://react.dev)** — UI framework with dev experience
+- **[Vite](https://vitejs.dev)** — Lightning-fast frontend tooling
+- **[Express](https://expressjs.com)** — Minimal, powerful backend framework
+- **[TypeScript](https://www.typescriptlang.org)** — Type-safe JavaScript
+- **[Tailwind CSS](https://tailwindcss.com)** — Utility-first CSS framework
+
+---
+
+## 🤝 Contributing
+
+Found a bug? Want to add a feature? Open an issue or PR on GitHub. All contributions welcome!
+
+---
+
+<div align="center">
+
+### ⭐ If you find Viscept useful, please star the repository!
+
+**Made with ❤️ for diagram enthusiasts.**
+
+</div>
