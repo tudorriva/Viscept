@@ -18,7 +18,7 @@ import { useChat } from './hooks/useChat';
 import { useSettings } from './hooks/useSettings';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useUIStore } from './store/uiStore';
-import { formatCode as formatCodeAPI, fetchDemo, validateDiagram, ValidationResult } from './utils/api';
+import { formatCode as formatCodeAPI, fetchDemo, fetchHealth, validateDiagram, ValidationResult } from './utils/api';
 import { exportAsPNG, exportAsSVG, exportAsPDF } from './utils/exporters';
 import type { DiagramExample } from './utils/examples';
 import './index.css';
@@ -60,9 +60,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     const check = async () => {
       try {
-        const r = await fetch('/api/health');
-        if (!r.ok) { setIsOllamaOnline(false); return; }
-        const data = await r.json();
+        const data = await fetchHealth();
         setIsOllamaOnline(data?.ollama?.online ?? false);
       } catch {
         setIsOllamaOnline(false);

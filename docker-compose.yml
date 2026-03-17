@@ -1,11 +1,9 @@
-version: '3.8'
-
 services:
   # Backend Express server
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: backend/Dockerfile
     container_name: viscept-backend
     ports:
       - "3001:3001"

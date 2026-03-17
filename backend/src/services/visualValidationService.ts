@@ -17,8 +17,30 @@ import path from 'path';
 // ── Configuration ──────────────────────────────────────────────────────────────
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b';
-const VLM_TIMEOUT = parseInt(process.env.VLM_TIMEOUT || '120000', 10);
+const VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'granite3.2-vision:2b';
+const CODER_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b-instruct-q4_K_M';
+const VLM_TIMEOUT = parseInt(process.env.VLM_TIMEOUT || '300000', 10);
+// If true, evict the coder from VRAM before running the VLM (needed when both
+// models can't fit simultaneously, e.g. qwen2.5vl:3b on a 4GB card).
+// granite3.2-vision:2b is small enough to co-reside, so this defaults to false.
+const VLM_EVICT_CODER = process.env.VLM_EVICT_CODER === 'true';
+
+/**
+ * Evict a model from VRAM by sending a generate request with keep_alive: 0.
+ * Ollama immediately unloads the model weights, freeing GPU memory.
+ */
+async function evictModel(model: string): Promise<void> {
+  try {
+    await axios.post(
+      `${OLLAMA_BASE_URL}/api/generate`,
+      { model, prompt: '', keep_alive: '0' },
+      { timeout: 10000 },
+    );
+    console.log(`[VisualValidation] Evicted ${model} from VRAM.`);
+  } catch {
+    // Model may not be loaded — that's fine, nothing to evict.
+  }
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -67,6 +89,13 @@ export async function validateDiagramVisually(
   try {
     console.log(`[VisualValidation] Inspecting ${request.diagramType} diagram with ${VLM_MODEL}...`);
 
+    // Optionally free VRAM before loading the VLM (set VLM_EVICT_CODER=true in
+    // .env when using a larger VLM like qwen2.5vl:3b on a 4GB card).
+    if (VLM_EVICT_CODER) {
+      await evictModel(CODER_MODEL);
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
     const prompt = buildValidationPrompt(request.diagramType, request.originalPrompt);
 
     const response = await axios.post(
@@ -76,8 +105,13 @@ export async function validateDiagramVisually(
         prompt,
         images: [request.imageBase64],
         stream: false,
-        temperature: 0.1, // Very low temperature for deterministic judgement
+        temperature: 0.1,
         format: 'json',
+        keep_alive: VLM_EVICT_CODER ? '0' : '5m', // evict after call only in swap mode
+        options: {
+          num_gpu: 99, // load all layers on GPU (Ollama caps to available VRAM)
+          num_ctx: 1024, // minimal context — image tokens + short Q&A is all we need
+        },
       },
       {
         timeout: VLM_TIMEOUT,
@@ -86,6 +120,7 @@ export async function validateDiagramVisually(
     );
 
     const rawResponse = response.data.response || '';
+    console.log(`[VisualValidation] Response: ${rawResponse}`);
     return parseValidationResponse(rawResponse);
   } catch (error) {
     console.error(

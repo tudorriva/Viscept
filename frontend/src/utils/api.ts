@@ -8,7 +8,10 @@ import axios, { AxiosInstance } from 'axios';
 // In dev, leave this unset: axios will use a relative base URL so all /api/*
 // requests are handled by the Vite proxy, which forwards them to the backend
 // regardless of which machine the browser is on.
-const API_URL = import.meta.env.VITE_API_URL ?? '';
+const API_URL = import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV
+    ? ''
+    : `${window.location.protocol}//${window.location.hostname}:3001`);
 // use VITE_API_TIMEOUT (ms) or fallback to 300000 (5 min)
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '300000', 10);
 
@@ -102,6 +105,23 @@ export interface ModelsResponse {
   vlm: VLMHealth;
   renderingCapabilities: Record<string, boolean>;
   timestamp: string;
+}
+
+export interface HealthResponse {
+  status: string;
+  timestamp: string;
+  ollama: {
+    online: boolean;
+    generativeModel: string;
+    visionModel: string;
+  };
+  vlm: {
+    available: boolean;
+    model: string;
+  };
+  pipeline: {
+    maxRetries: number;
+  };
 }
 
 /**
@@ -200,6 +220,14 @@ export async function classifyDiagramType(prompt: string): Promise<'mermaid' | '
  */
 export async function fetchModels(): Promise<ModelsResponse> {
   const response = await client.get<ModelsResponse>('/api/models');
+  return response.data;
+}
+
+/**
+ * Fetch backend health and model availability.
+ */
+export async function fetchHealth(): Promise<HealthResponse> {
+  const response = await client.get<HealthResponse>('/api/health');
   return response.data;
 }
 
