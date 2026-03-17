@@ -1,7 +1,7 @@
 <div align="center">
 <img width="612" height="200" alt="Viscept Logo" src="https://github.com/user-attachments/assets/1e4b824e-2fb5-4c5e-b9af-46e805e4bc4d" />
 
-<h1>🎨 Viscept: AI Diagram Builder</h1>
+<h1>Viscept: AI Diagram Builder</h1>
 <p><strong>Transform natural language into stunning diagrams in seconds.</strong></p>
 <p>Ultra-fast, privacy-first diagram generation with local AI. No cloud uploads. Pure performance.</p>
 
@@ -17,38 +17,38 @@
 
 <br />
 
-**[🚀 Quick Start](#quick-start) • [✨ Features](#features) • [🏗️ Architecture](#architecture) • [📡 API](#api-endpoints) • [⚙️ Config](#configuration) • [🗂️ Structure](#project-structure)**
+**[Quick Start](#quick-start) • [Features](#features) • [Architecture](#architecture) • [API](#api-endpoints) • [Config](#configuration) • [Structure](#project-structure)**
 
 </div>
 
 ---
 
-## 🌟 What is Viscept?
+## What is Viscept?
 
 **Viscept** is a blazing-fast, local-first web application that turns plain English (or any language) into production-ready diagram code. No subscriptions. No rate limits. No data sent to the cloud. Everything runs on your machine with Ollama.
 
-### ⚡ The Tech Stack
+### The Tech Stack
 
 - **Frontend**: React 18 + Vite + Tailwind CSS + TypeScript (instant rendering)
 - **Backend**: Express + Node.js 18+ + TypeScript (zero-latency API)
 - **Brain**: Ollama (local LLM inference on your GPU/CPU)
 - **Containerization**: Docker (one-command deployment)
 
-## ✨ Features That Matter
+## Features That Matter
 
 | Feature | Benefit |
-|---------|---------|
-| 🎯 **Natural Language Input** | Just describe your diagram. AI handles the rest. |
-| 🚀 **4 Diagram Languages** | Mermaid • DBML • Graphviz (DOT) • PlantUML |
-| 👁️ **Live Preview** | See changes in real-time as you edit |
-| 💾 **Local-First Storage** | Version history (20+ versions), projects saved as JSON |
-| 🎨 **Export Everything** | PNG • SVG • PDF with one click |
-| ⚡ **No Cloud Required** | Everything runs on your machine. Zero latency. |
-| 🔒 **Privacy Built-In** | Your diagrams never leave your device |
-| ⌨️ **Power User Shortcuts** | Ctrl+Enter (Generate), Ctrl+S (Save), Ctrl+Shift+E (Export SVG) |
-| 🖥️ **Remote Access** | Access from another device via Tailscale or LAN |
+|---------|----------|
+| **Natural Language Input** | Just describe your diagram. AI handles the rest. |
+| **4 Diagram Languages** | Mermaid • DBML • Graphviz (DOT) • PlantUML |
+| **Live Preview** | See changes in real-time as you edit |
+| **Local-First Storage** | Version history (20+ versions), projects saved as JSON |
+| **Export Everything** | PNG • SVG • PDF with one click |
+| **No Cloud Required** | Everything runs on your machine. Zero latency. |
+| **Privacy Built-In** | Your diagrams never leave your device |
+| **Power User Shortcuts** | Ctrl+Enter (Generate), Ctrl+S (Save), Ctrl+Shift+E (Export SVG) |
+| **Remote Access** | Access from another device via Tailscale or LAN |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -109,7 +109,7 @@ docker compose up --build -d
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -153,7 +153,7 @@ docker compose up --build -d
 - **[`backend/src/services/visualValidationService.ts`](backend/src/services/visualValidationService.ts)**: VLM-based diagram inspection
 - **[`backend/src/services/pipelineService.ts`](backend/src/services/pipelineService.ts)**: Self-correction loop (Generate → Render → Inspect → Correct)
 
-## 📖 How to Use
+## How to Use
 
 ### Basic Workflow
 
@@ -184,13 +184,11 @@ docker compose up --build -d
 
 ---
 
-## 📡 API Endpoints
-
-## 📡 API Endpoints
+## API Endpoints
 
 **Base URL**: `http://localhost:3001` (or your remote Tailscale IP)
 
-### 🔄 Core Endpoints
+### Core Endpoints
 
 #### `POST /api/generate`
 Generate diagram code from a natural-language prompt.
@@ -295,9 +293,7 @@ curl http://localhost:3001/api/demo
 
 ---
 
-## ⚙️ Configuration
-
-## ⚙️ Configuration
+## Configuration
 
 ### Backend Configuration
 
@@ -343,9 +339,7 @@ VITE_API_URL=http://100.x.x.x:3001  # Tailscale IP, for example
 
 ---
 
-## 🗂️ Project Structure
-
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 viscept/
@@ -393,7 +387,7 @@ viscept/
 
 ---
 
-## 🚀 Development
+## Development
 
 ### Installation
 
@@ -447,7 +441,7 @@ make lint
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "Cannot connect to Ollama"
 
@@ -484,7 +478,7 @@ This is okay! The app falls back to placeholder rendering. Diagrams still work f
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 - **[QUICK_START.md](QUICK_START.md)** — Fast setup guide
 - **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** — Production deployment
@@ -495,13 +489,13 @@ This is okay! The app falls back to placeholder rendering. Diagrams still work f
 
 ---
 
-## 📄 License
+## License
 
 MIT License — See [LICENSE](LICENSE) for details. Use Viscept freely in personal and commercial projects.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Viscept is built on the shoulders of giants:
 
@@ -515,7 +509,7 @@ Viscept is built on the shoulders of giants:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Found a bug? Want to add a feature? Open an issue or PR on GitHub. All contributions welcome!
 
@@ -523,8 +517,8 @@ Found a bug? Want to add a feature? Open an issue or PR on GitHub. All contribut
 
 <div align="center">
 
-### ⭐ If you find Viscept useful, please star the repository!
+### If you find Viscept useful, please star the repository!
 
-**Made with ❤️ for diagram enthusiasts.**
+**Made with care for diagram enthusiasts.**
 
 </div>
