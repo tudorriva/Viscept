@@ -133,6 +133,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                     border: `1px solid ${theme.colors.border.medium}`,
                   }}
                 >
+                  <option value="viscept">Viscept (Recommended)</option>
+                  <option value="qwen2.5-coder:7b">Qwen2.5-Coder 7B</option>
                   <option value="mistral">Mistral 7B</option>
                   <option value="neural-chat">Neural Chat</option>
                   <option value="codellama">CodeLlama</option>

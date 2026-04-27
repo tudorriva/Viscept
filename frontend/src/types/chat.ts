@@ -2,7 +2,7 @@
  * Chat session and message types for v2.0 conversation-based workflow.
  */
 
-export type DiagramType = 'mermaid' | 'dbml' | 'graphviz';
+export type DiagramType = 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
 
 export type MessageRole = 'user' | 'assistant';
 

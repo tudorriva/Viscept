@@ -2,7 +2,7 @@
  * Project and workspace type definitions
  */
 
-export type DiagramType = 'mermaid' | 'dbml' | 'graphviz';
+export type DiagramType = 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
 
 export interface ProjectData {
   id: string;

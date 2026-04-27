@@ -1,6 +1,22 @@
-import React, { useRef } from 'react';
-import Editor from '@monaco-editor/react';
-import { Wand2 } from 'lucide-react';
+/**
+ * CodeEditor — Smart wrapper that selects the right editor based on diagram language.
+ * 
+ * Routes to language-specific editors:
+ * - Mermaid → MermaidEditor (markdown syntax)
+ * - Graphviz → GraphvizEditor (DOT syntax)
+ * - DBML → DBMLEditor (SQL-like syntax)
+ * - PlantUML → PlantUMLEditor (PlantUML syntax)
+ * 
+ * Each editor provides:
+ * - Proper syntax highlighting
+ * - Language-specific tips and helpers
+ * - Optimized autocomplete and formatting
+ */
+import React from 'react';
+import { MermaidEditor } from './editors/MermaidEditor';
+import { GraphvizEditor } from './editors/GraphvizEditor';
+import { DBMLEditor } from './editors/DBMLEditor';
+import { PlantUMLEditor } from './editors/PlantUMLEditor';
 import { theme } from '../theme';
 
 interface CodeEditorProps {
@@ -16,111 +32,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange,
   onFormat,
 }) => {
-  const editorRef = useRef<any>(null);
+  const normalizedLanguage = (language || 'mermaid').toLowerCase();
 
-  const handleEditorMount = (editor: any) => {
-    editorRef.current = editor;
-  };
+  // Render the appropriate language-specific editor
+  if (normalizedLanguage === 'graphviz' || normalizedLanguage === 'dot') {
+    return <GraphvizEditor code={code} onChange={onChange} onFormat={onFormat} />;
+  }
 
-  const getEditorLanguage = (): string => {
-    const langMap: Record<string, string> = {
-      mermaid: 'markdown',
-      dbml: 'text',
-      graphviz: 'text',
-    };
-    return langMap[language] || 'text';
-  };
+  if (normalizedLanguage === 'dbml') {
+    return <DBMLEditor code={code} onChange={onChange} onFormat={onFormat} />;
+  }
 
-  return (
-    <div
-      className="flex flex-col h-full"
-      style={{ backgroundColor: theme.colors.bg.secondary }}
-    >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-6 py-4 border-b"
-        style={{ borderColor: theme.colors.border.medium }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded flex items-center justify-center"
-            style={{ backgroundColor: `${theme.colors.accent.primary}20` }}
-          >
-            <Wand2 size={16} color={theme.colors.accent.primary} />
-          </div>
-          <div>
-            <h2
-              className="text-sm font-bold uppercase tracking-wide"
-              style={{ color: theme.colors.text.primary }}
-            >
-              {(language || 'text').toUpperCase()} Code
-            </h2>
-            <p
-              className="text-xs mt-0.5"
-              style={{ color: theme.colors.text.tertiary }}
-            >
-              {code.split('\n').length} lines • {code.length} chars
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={onFormat}
-          className="px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-          style={{
-            backgroundColor: theme.colors.bg.tertiary,
-            color: theme.colors.accent.primary,
-            border: `1px solid ${theme.colors.border.medium}`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = `${theme.colors.accent.primary}20`;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary;
-          }}
-        >
-          <Wand2 size={14} />
-          Format
-        </button>
-      </div>
+  if (normalizedLanguage === 'plantuml') {
+    return <PlantUMLEditor code={code} onChange={onChange} onFormat={onFormat} />;
+  }
 
-      {/* Editor */}
-      <div className="flex-1 overflow-hidden">
-        <Editor
-          height="100%"
-          language={getEditorLanguage()}
-          value={code}
-          onChange={(value) => onChange(value || '')}
-          onMount={handleEditorMount}
-          theme="vs-dark"
-          options={{
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            fontSize: 13,
-            fontFamily: "'JetBrains Mono', monospace",
-            lineHeight: 24,
-            padding: { top: 16, bottom: 16 },
-            renderWhitespace: 'selection',
-            wordWrap: 'on',
-            bracketPairColorization: {
-              enabled: true,
-            },
-          }}
-        />
-      </div>
-
-      {/* Footer Stats */}
-      <div
-        className="px-6 py-3 border-t flex justify-between items-center text-xs font-mono"
-        style={{
-          borderColor: theme.colors.border.medium,
-          backgroundColor: theme.colors.bg.tertiary,
-          color: theme.colors.text.tertiary,
-        }}
-      >
-        <span>Lines: {code.split('\n').length}</span>
-        <span>Chars: {code.length}</span>
-        <span>Words: {code.split(/\s+/).filter((w) => w.length > 0).length}</span>
-      </div>
-    </div>
-  );
+  // Default to Mermaid for 'mermaid' or any unrecognized language
+  return <MermaidEditor code={code} onChange={onChange} onFormat={onFormat} />;
 };

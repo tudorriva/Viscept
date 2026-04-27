@@ -189,12 +189,15 @@ export function useChat(): UseChatReturn {
 
         // 4. Call backend chat endpoint
         const isFirstMessage = session.messages.filter((m) => m.role === 'user').length === 1;
+        // Note: model settings come from localStorage (useSettings hook in App.tsx)
+        // Backend will use environment defaults if not provided
         const response = await sendChatMessage({
           chatId: session.id,
           message: content,
           diagramType: diagramType!,
           currentDiagramCode: isFirstMessage ? undefined : session.currentDiagramCode,
           isFirstMessage,
+          // Model settings can be passed here if available from context/props
         });
 
         // 5. Append assistant message

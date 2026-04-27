@@ -19,7 +19,9 @@ function normalizeOllamaBaseUrl(raw?: string): string {
 
 const OLLAMA_BASE_URL = normalizeOllamaBaseUrl(process.env.OLLAMA_URL);
 const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
+// Default generative model options: 'viscept', 'qwen2.5-coder:7b', 'mistral', 'neural-chat', 'codellama', etc.
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'viscept';
+// Default VLM (vision) model options: 'qwen2.5vl:3b', 'llava', 'bakllava', etc.
 const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b';
 const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || '300000', 10);
 const OLLAMA_MODIFY_TIMEOUT = parseInt(process.env.OLLAMA_MODIFY_TIMEOUT || '600000', 10); // 10 min for modifications

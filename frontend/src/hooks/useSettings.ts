@@ -22,8 +22,8 @@ export interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  model: 'qwen2.5-coder:7b',
-  visionModel: 'granite3.2-vision:2b',
+  model: 'viscept',
+  visionModel: 'qwen2.5vl:3b',
   temperature: 0.3,
   maxTokens: 2048,
   fontSize: 13,

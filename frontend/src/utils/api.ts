@@ -183,6 +183,8 @@ export interface ChatMessageRequest {
   isFirstMessage: boolean;
   enableValidation?: boolean;
   maxRetries?: number;
+  model?: string; // AI generative model selection
+  visionModel?: string; // AI vision model for validation
 }
 
 export interface ChatMessageResponse {
