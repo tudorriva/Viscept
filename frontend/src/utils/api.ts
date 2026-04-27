@@ -178,7 +178,7 @@ export async function fetchDemo(): Promise<DemoResponse> {
 export interface ChatMessageRequest {
   chatId: string;
   message: string;
-  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  diagramType: 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
   currentDiagramCode?: string;
   isFirstMessage: boolean;
   enableValidation?: boolean;
@@ -205,14 +205,14 @@ export async function sendChatMessage(req: ChatMessageRequest): Promise<ChatMess
 }
 
 export interface ClassifyResponse {
-  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  diagramType: 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
   timestamp: string;
 }
 
 /**
  * Auto-classify the best diagram type for a user prompt.
  */
-export async function classifyDiagramType(prompt: string): Promise<'mermaid' | 'dbml' | 'graphviz'> {
+export async function classifyDiagramType(prompt: string): Promise<'mermaid' | 'dbml' | 'graphviz' | 'plantuml'> {
   const response = await client.post<ClassifyResponse>('/api/classify', { prompt });
   return response.data.diagramType;
 }

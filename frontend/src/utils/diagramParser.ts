@@ -32,6 +32,7 @@ interface RawEdge {
   target: string;
   label?: string;
   type?: string; // "arrow" | "dashed" | "thick" | "dotted"
+  cardinality?: string; // "many-to-one" | "one-to-one" | "many-to-many" | "one"
 }
 
 // ── Auto-Layout ────────────────────────────────────────────────────────────────
@@ -189,17 +190,34 @@ function parseMermaidFlowchart(lines: string[]): ParsedDiagram {
     // Skip subgraph / end / style / class lines
     if (/^(subgraph|end|style|class|click|linkStyle)\b/i.test(line)) continue;
 
-    // Match edges: A --> B, A -->|label| B, A -- text --> B, A -.-> B
-    const edgeMatch = line.match(
+    // Match edges with all Mermaid arrow syntaxes:
+    // A --> B, A -->|label| B, A -- text --> B, A -.-> B, A -.text.- B, etc.
+    // Enhanced regex to capture embedded text like "A -- click here --> B"
+    let edgeLabel: string | undefined;
+    let edgeMatch = line.match(
       /^(\w+)(?:\[.*?\]|{.*?}|>.*?]|[^\s\[{>-]*)?\s*(-+(?:\.-+)?-?>|=+>|--+>?|~~>|--+\|[^|]*\|--+>?|-+>?\|[^|]*\|)\s*(\w+)(?:\[.*?\]|{.*?}|>.*?])?/
     );
 
-    if (edgeMatch) {
-      const [, srcId, edgePart, tgtId] = edgeMatch;
+    // If standard regex didn't match, try the alternate "-- text -->" format
+    if (!edgeMatch) {
+      edgeMatch = line.match(
+        /^(\w+)(?:\[.*?\]|{.*?}|>.*?]|[^\s\[{>-]*)?\s*--\s*(.+?)\s*-+>?\s*(\w+)(?:\[.*?\]|{.*?}|>.*?])?/
+      );
+      if (edgeMatch) {
+        edgeLabel = edgeMatch[2]?.trim();
+      }
+    }
 
-      // Extract edge label from |label| syntax
-      const labelMatch = edgePart.match(/\|([^|]*)\|/);
-      const edgeLabel = labelMatch ? labelMatch[1].trim() : undefined;
+    if (edgeMatch) {
+      const srcId = edgeMatch[1];
+      const tgtId = edgeMatch[3];
+      const edgePart = edgeMatch[2];
+
+      // Extract label from |label| syntax (if not already set from -- text -->)
+      if (!edgeLabel) {
+        const labelMatch = edgePart.match(/\|([^|]*)\|/);
+        edgeLabel = labelMatch ? labelMatch[1].trim() : undefined;
+      }
 
       // Ensure source node exists
       if (!nodeIds.has(srcId)) {
@@ -479,9 +497,13 @@ function parseMermaidState(lines: string[]): ParsedDiagram {
 function parseDBML(code: string): ParsedDiagram {
   const rawNodes: RawNode[] = [];
   const rawEdges: RawEdge[] = [];
+  const tableNames: string[] = [];
+  const tableFields = new Map<string, { field: string; hasRef: boolean }[]>();
 
   const lines = code.split('\n');
   let currentTable: RawNode | null = null;
+
+  // ── 1. Parse all Table blocks ──────────────────────────────────────────
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -489,17 +511,20 @@ function parseDBML(code: string): ParsedDiagram {
     // Table definition
     const tableMatch = trimmed.match(/^Table\s+(\w+)\s*\{/i);
     if (tableMatch) {
+      const tableName = tableMatch[1];
       currentTable = {
-        id: tableMatch[1],
-        label: tableMatch[1],
+        id: tableName,
+        label: tableName,
         fields: [],
       };
+      tableNames.push(tableName);
       continue;
     }
 
     // End of table
     if (trimmed === '}' && currentTable) {
       rawNodes.push(currentTable);
+      tableFields.set(currentTable.id.toLowerCase(), currentTable.fields!.map((f) => ({ field: f, hasRef: /\[ref:/i.test(f) })));
       currentTable = null;
       continue;
     }
@@ -508,28 +533,99 @@ function parseDBML(code: string): ParsedDiagram {
     if (currentTable && trimmed && !trimmed.startsWith('//')) {
       currentTable.fields!.push(trimmed);
 
-      // Extract foreign key references
-      const refMatch = trimmed.match(/\[ref:\s*[><-]\s*(\w+)\.(\w+)\]/i);
-      if (refMatch) {
-        rawEdges.push({
-          source: currentTable.id,
-          target: refMatch[1],
-          label: refMatch[2],
-        });
+      // Extract inline foreign key references: [ref: > table.column]
+      const inlineRefMatch = trimmed.match(/\[ref:\s*([><-])\s*(\w+)\.(\w+)\]/i);
+      if (inlineRefMatch) {
+        const [, dir, refTable, refColumn] = inlineRefMatch;
+        const source = currentTable.id;
+        const target = refTable;
+        if (dir === '>') {
+          rawEdges.push({ source, target, label: refColumn, cardinality: 'many-to-one' });
+        } else if (dir === '<') {
+          rawEdges.push({ source: target, target: source, label: refColumn, cardinality: 'many-to-one' });
+        } else {
+          rawEdges.push({ source, target, label: refColumn, cardinality: 'one-to-one' });
+        }
       }
     }
 
-    // Standalone Ref: users.id < posts.user_id
+    // Standalone Ref declarations: Ref: table.column > other.column
     const standaloneRef = trimmed.match(
-      /^Ref:\s*(\w+)\.(\w+)\s*([><-])\s*(\w+)\.(\w+)/i
+      /^Ref[^{]*:\s*(\w+)\.(\w+)\s*([<>-]+)\s*(\w+)\.(\w+)/i
     );
     if (standaloneRef) {
-      const [, srcTable, , dir, tgtTable] = standaloneRef;
-      rawEdges.push({
-        source: dir === '<' ? tgtTable : srcTable,
-        target: dir === '<' ? srcTable : tgtTable,
-        label: 'FK',
-      });
+      const [, srcTable, srcCol, dir, tgtTable, tgtCol] = standaloneRef;
+      if (dir.includes('>')) {
+        rawEdges.push({ source: srcTable, target: tgtTable, label: tgtCol, cardinality: 'many-to-one' });
+      } else if (dir.includes('<')) {
+        rawEdges.push({ source: tgtTable, target: srcTable, label: srcCol, cardinality: 'many-to-one' });
+      } else {
+        rawEdges.push({ source: srcTable, target: tgtTable, label: tgtCol, cardinality: 'one-to-one' });
+      }
+    }
+  }
+
+  // ── 2. Multi-line Ref blocks ──────────────────────────────────────────
+
+  const refBlocks = code.match(/Ref\s*(?:\w+\s*)?\{([^}]*)\}/gi) || [];
+  for (const block of refBlocks) {
+    const bodyMatch = block.match(/\{([^}]*)\}/);
+    if (!bodyMatch) continue;
+    const refLines = bodyMatch[1].split('\n').map((l) => l.trim()).filter(Boolean);
+    for (const rl of refLines) {
+      const m = rl.match(/(\w+)\.(\w+)\s*([<>-]+)\s*(\w+)\.(\w+)/);
+      if (m) {
+        const [, srcTable, srcCol, dir, tgtTable, tgtCol] = m;
+        if (dir.includes('>')) {
+          rawEdges.push({ source: srcTable, target: tgtTable, label: tgtCol, cardinality: 'many-to-one' });
+        } else if (dir.includes('<')) {
+          rawEdges.push({ source: tgtTable, target: srcTable, label: srcCol, cardinality: 'many-to-one' });
+        } else {
+          rawEdges.push({ source: srcTable, target: tgtTable, label: tgtCol, cardinality: 'one-to-one' });
+        }
+      }
+    }
+  }
+
+  // ── 3. Infer relationships from _id / _fk naming convention ────────────
+
+  const lowerTableNames = tableNames.map((t) => t.toLowerCase());
+  for (const tableName of tableNames) {
+    const fields = tableFields.get(tableName.toLowerCase()) || [];
+    for (const { field, hasRef } of fields) {
+      // Skip fields that already have explicit refs
+      if (hasRef) continue;
+
+      const clean = field.replace(/\[.*?\]/g, '').trim();
+      const parts = clean.split(/\s+/);
+      if (parts.length < 2) continue;
+      const fName = parts[0].toLowerCase();
+
+      // Pattern: ends with _id or _fk, e.g. user_id → users / user
+      const fkMatch = fName.match(/^(\w+?)_(?:id|fk)$/);
+      if (fkMatch) {
+        const baseName = fkMatch[1];
+        // Try to find a matching table: "users" or "user"
+        const targetIdx = lowerTableNames.findIndex(
+          (t) => t === baseName || t === baseName + 's' || t + 's' === baseName
+        );
+        if (targetIdx !== -1) {
+          const targetTable = tableNames[targetIdx];
+          // Only add if this ref pair doesn't already exist
+          const alreadyExists = rawEdges.some(
+            (e) => (e.source === tableName && e.target === targetTable) ||
+                   (e.source === targetTable && e.target === tableName)
+          );
+          if (!alreadyExists) {
+            rawEdges.push({
+              source: tableName,
+              target: targetTable,
+              label: fName,
+              cardinality: 'many-to-one',
+            });
+          }
+        }
+      }
     }
   }
 

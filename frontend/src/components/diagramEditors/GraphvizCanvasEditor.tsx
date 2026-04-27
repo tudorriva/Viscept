@@ -21,6 +21,8 @@ import {
   useEdgesState,
   useReactFlow,
   addEdge as rfAddEdge,
+  applyNodeChanges,
+  applyEdgeChanges,
   type Connection,
   type Node,
   type Edge,
@@ -96,7 +98,7 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
   const emitCode = useCallback((vcm: any) => {
     if (codeDrivenGenRef.current !== 0) return;
     try {
-      const newCode = vcmToDSL(vcm, 'graphviz');
+      const newCode = vcmToDSL(vcm);
       onCodeChange(newCode);
     } catch (error) {
       console.error('[Graphviz Editor] Serialization error:', error);
@@ -107,9 +109,10 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
 
   const handleNodesChange = useCallback(
     (changes: any) => {
+      const nextNodes = applyNodeChanges(changes, nodes);
       onNodesChange(changes);
       if (vcmRef.current) {
-        const updated = reactFlowToVCM(nodes, edges, vcmRef.current);
+        const updated = reactFlowToVCM(nextNodes, edges, vcmRef.current);
         vcmRef.current = updated;
         history.push(updated);
         emitCode(updated);
@@ -120,9 +123,10 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
 
   const handleEdgesChange = useCallback(
     (changes: any) => {
+      const nextEdges = applyEdgeChanges(changes, edges);
       onEdgesChange(changes);
       if (vcmRef.current) {
-        const updated = reactFlowToVCM(nodes, edges, vcmRef.current);
+        const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
         vcmRef.current = updated;
         emitCode(updated);
       }
@@ -132,10 +136,10 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      const edge = rfAddEdge(connection, edges);
-      setEdges(edge);
+      const nextEdges = rfAddEdge(connection, edges);
+      setEdges(nextEdges);
       if (vcmRef.current) {
-        const updated = reactFlowToVCM(nodes, edge, vcmRef.current);
+        const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
         vcmRef.current = updated;
         emitCode(updated);
       }
