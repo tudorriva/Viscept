@@ -24,12 +24,10 @@ interface TableNodeData {
 function serializeMermaidFlowchart(nodes: Node[], edges: Edge[]): string {
   const lines: string[] = ['flowchart TD'];
 
-  // Node definitions
+  // Node definitions - always output each node with its label
   for (const node of nodes) {
     const label = String(node.data?.label || node.id);
-    if (label !== node.id) {
-      lines.push(`    ${node.id}["${label}"]`);
-    }
+    lines.push(`    ${node.id}["${label}"]`);
   }
 
   // Edge definitions
@@ -62,6 +60,8 @@ function serializeMermaidClass(nodes: Node[], edges: Edge[]): string {
       for (const m of methods) lines.push(`        ${m}`);
       lines.push('    }');
       lines.push('');
+    } else {
+      lines.push(`    class ${name}`);
     }
   }
 
@@ -82,12 +82,16 @@ function serializeMermaidER(nodes: Node[], edges: Edge[]): string {
 
   for (const node of nodes) {
     const data = node.data as unknown as TableNodeData;
-    const name = data?.label || node.id;
+    const name = node.id;
     const fields = data?.fields || [];
 
     if (fields.length > 0) {
       lines.push(`    ${name} {`);
       for (const f of fields) lines.push(`        ${f}`);
+      lines.push('    }');
+    } else {
+      lines.push(`    ${name} {`);
+      lines.push('        id integer');
       lines.push('    }');
     }
   }
@@ -149,7 +153,7 @@ function serializeDBML(nodes: Node[], edges: Edge[]): string {
 
   for (const node of nodes) {
     const data = node.data as unknown as TableNodeData;
-    const tableName = data?.label || node.id;
+    const tableName = node.id;
     const fields = data?.fields || [];
 
     lines.push(`Table ${tableName} {`);

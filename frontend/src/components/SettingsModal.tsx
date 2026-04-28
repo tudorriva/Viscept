@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS: Settings = {
   tabSize: 2,
   theme: 'dark',
   notifications: true,
-  generativeModel: 'qwen2.5-coder:7b',
+  generativeModel: 'viscept',
   visionModel: 'granite3.2-vision:2b',
   temperature: 0.3,
   autoValidation: false,
@@ -234,7 +234,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     border: `1px solid ${theme.colors.border.medium}`,
                   }}
                 >
-                  <option value="qwen2.5-coder:7b">Qwen2.5-Coder 7B (Recommended)</option>
+                  <option value="viscept">Viscept (Recommended)</option>
+                  <option value="qwen2.5-coder:7b">Qwen2.5-Coder 7B</option>
                   <option value="qwen2.5-coder:3b">Qwen2.5-Coder 3B (Faster)</option>
                   <option value="mistral">Mistral 7B (Legacy)</option>
                   <option value="llama3.1:8b">Llama 3.1 8B (Generalist)</option>

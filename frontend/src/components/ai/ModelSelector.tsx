@@ -12,11 +12,12 @@ export interface ModelOption {
 }
 
 const MODEL_OPTIONS: ModelOption[] = [
-  { value: 'qwen2.5-coder:7b',  label: 'Qwen2.5-Coder 7B',  group: 'code',   recommended: true },
+  { value: 'viscept',          label: 'Viscept',             group: 'code', recommended: true },
+  { value: 'qwen2.5-coder:7b',  label: 'Qwen2.5-Coder 7B',  group: 'code' },
   { value: 'qwen2.5-coder:3b',  label: 'Qwen2.5-Coder 3B',  group: 'code' },
   { value: 'mistral',           label: 'Mistral 7B',          group: 'code' },
   { value: 'llama3.1:8b',       label: 'Llama 3.1 8B',        group: 'code' },
-  { value: 'codellama:7b',      label: 'CodeLlama 7B',        group: 'code' },
+  { value: 'codellama:7b',      label: 'CodeLlama 7B',       group: 'code' },
   { value: 'granite3.2-vision:2b', label: 'Granite3.2 Vision 2B', group: 'vision', recommended: true },
   { value: 'qwen2.5vl:3b',         label: 'Qwen2.5-VL 3B',        group: 'vision' },
   { value: 'moondream:latest',  label: 'Moondream2 1.9B',    group: 'vision' },

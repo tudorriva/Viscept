@@ -50,7 +50,7 @@ Table assignments {
   role varchar
 }`,
 
-    mermaid: `graph TD
+    mermaid: `flowchart TD
     A["User Login"] --> B{Credentials Valid?}
     B -->|No| C["Show Error"]
     C --> A

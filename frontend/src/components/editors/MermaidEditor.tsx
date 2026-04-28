@@ -93,8 +93,6 @@ export const MermaidEditor: React.FC<MermaidEditorProps> = ({
             autoIndent: 'keep',
             formatOnPaste: true,
             formatOnType: true,
-            'bracketPairColorization.enabled': true,
-            'editor.bracketPairColorization.independentColorPoolPerBracketType': true,
           }}
         />
       </div>

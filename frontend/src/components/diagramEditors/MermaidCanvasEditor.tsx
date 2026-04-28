@@ -70,43 +70,54 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
   // ── Code → VCM → React Flow sync ───────────────────────────────────────
 
   useEffect(() => {
-    if (code === lastCodeRef.current && nodes.length > 0) return;
-    lastCodeRef.current = code;
+    const currentCode = code.trim();
+    if (currentCode === lastCodeRef.current && nodes.length > 0) return undefined;
+    lastCodeRef.current = currentCode;
 
-    if (!code.trim()) {
+    if (!currentCode) {
       vcmRef.current = null;
       setNodes([]);
       setEdges([]);
-      return;
+      return undefined;
     }
 
     const gen = ++codeDrivenGenRef.current;
 
     try {
-      const vcm = dslToVCM(code, 'mermaid');
+      const vcm = dslToVCM(currentCode, 'mermaid');
+      
+      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm);
+      
+      setNodes(rfNodes);
+      setEdges(rfEdges);
       vcmRef.current = vcm;
       history.push(vcm);
-
-      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm);
-      setNodes(rfNodes);
       
-      const timer = setTimeout(() => {
-        setEdges(rfEdges);
-        requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }));
-      }, 80);
+      // Fit view after React Flow has fully rendered nodes and calculated their dimensions
+      // Use multiple frames to account for async React state updates and DOM layout
+      const fitTimer = setTimeout(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            fitView({ padding: 0.3, duration: 200 });
+          });
+        });
+      }, 0);
 
       const releaseTimer = setTimeout(() => {
         if (codeDrivenGenRef.current === gen) {
           codeDrivenGenRef.current = 0;
         }
-      }, 150);
+      }, 300);
 
       return () => {
-        clearTimeout(timer);
+        clearTimeout(fitTimer);
         clearTimeout(releaseTimer);
       };
     } catch (error) {
       console.error('[Mermaid Editor] Parse error:', error);
+      setNodes([]);
+      setEdges([]);
+      return undefined;
     }
   }, [code, setNodes, setEdges, fitView, history]);
 

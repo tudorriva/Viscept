@@ -268,11 +268,14 @@ export const EditableNode = memo(({ id, data, selected }: NodeProps) => {
   const isSubroutine = vcmShape === 'subroutine';
   const borderRadius = vcmShape === 'rect' || isSubroutine ? 4 : 8;
 
+  // Dynamic width based on label length (prevents text cutoff)
+  const minWidth = Math.max(120, label.length * 8 + 32);
+
   return (
     <div
       className="px-4 py-2.5 shadow-md"
       style={{
-        minWidth: 120,
+        minWidth,
         borderRadius,
         backgroundColor: theme.colors.bg.tertiary,
         border: `2px solid ${borderColor(selected)}`,
@@ -559,11 +562,14 @@ export const StadiumNode = memo(({ id, data, selected }: NodeProps) => {
     | undefined;
   const edit = useInlineEdit(id, label, onLabelChange);
 
+  // Dynamic width based on label length (prevents text cutoff)
+  const minWidth = Math.max(120, label.length * 8 + 32);
+
   return (
     <div
       className="px-5 py-2 shadow-md"
       style={{
-        minWidth: 120,
+        minWidth,
         borderRadius: 999,
         backgroundColor: theme.colors.bg.tertiary,
         border: `2px solid ${borderColor(selected)}`,
@@ -652,10 +658,13 @@ export const ParallelogramNode = memo(({ id, data, selected }: NodeProps) => {
   // Trapezoid skews the opposite direction
   const skewDeg = vcmShape === 'trapezoid' ? 10 : -10;
 
+  // Dynamic width based on label length (prevents text cutoff)
+  const minWidth = Math.max(120, label.length * 8 + 32);
+
   return (
     <div
       style={{
-        minWidth: 120,
+        minWidth,
         position: 'relative',
       }}
       onDoubleClick={edit.handleDoubleClick}
@@ -694,11 +703,14 @@ export const EllipseNode = memo(({ id, data, selected }: NodeProps) => {
     | undefined;
   const edit = useInlineEdit(id, label, onLabelChange);
 
+  // Dynamic width based on label length (prevents text cutoff)
+  const minWidth = Math.max(100, label.length * 8 + 24);
+
   return (
     <div
       className="px-5 py-2.5 shadow-md"
       style={{
-        minWidth: 100,
+        minWidth,
         borderRadius: '50%',
         backgroundColor: theme.colors.bg.tertiary,
         border: `2px solid ${borderColor(selected)}`,

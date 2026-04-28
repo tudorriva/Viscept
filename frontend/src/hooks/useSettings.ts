@@ -50,7 +50,11 @@ export const useSettings = () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+        const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } as Settings;
+        if (!parsed.model || parsed.model === 'qwen2.5-coder:7b' || parsed.model === 'llama3.2') {
+          parsed.model = 'viscept';
+        }
+        return parsed;
       }
     } catch (error) {
       console.error('Failed to load settings:', error);

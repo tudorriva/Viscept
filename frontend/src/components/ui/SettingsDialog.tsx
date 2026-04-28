@@ -246,8 +246,8 @@ const AITab: React.FC<{ settings: Record<string, unknown>; onChange: (k: string,
   <div className="space-y-0.5">
     <Row label="Generation Model" description="Primary model for diagram generation">
       <StyledSelect
-        value={(settings.model as string) ?? 'llama3.2'}
-        options={['llama3.2', 'qwen2.5-coder:7b', 'deepseek-coder:6.7b', 'codestral:22b', 'mistral:7b']}
+        value={(settings.model as string) ?? 'viscept'}
+        options={['viscept', 'qwen2.5-coder:7b', 'deepseek-coder:6.7b', 'codestral:22b', 'mistral:7b']}
         onChange={(v) => onChange('model', v)}
       />
     </Row>

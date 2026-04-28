@@ -212,8 +212,8 @@ textarea { resize:none; }
    MERMAID / SVG
    ═══════════════════════════════════════════════════════════════ */
 .mermaid { display:flex; justify-content:center; align-items:center; padding:20px; }
-.mermaid svg { max-width:100%; height:auto; }
-svg { max-width:100%; height:auto; filter:brightness(0.97); }
+.mermaid svg { width:auto; height:auto; }
+svg { width:auto; height:auto; filter:brightness(0.97); }
 
 /* ═══════════════════════════════════════════════════════════════
    KEYFRAMES

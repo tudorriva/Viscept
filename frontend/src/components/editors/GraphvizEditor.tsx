@@ -91,8 +91,8 @@ export const GraphvizEditor: React.FC<GraphvizEditorProps> = ({
             autoClosingBrackets: 'always',
             autoClosingQuotes: 'always',
             autoIndent: 'keep',
-            formatOnPaste: true,
-            'bracketPairColorization.enabled': true,
+formatOnPaste: true,
+            formatOnType: true,
           }}
         />
       </div>

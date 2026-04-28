@@ -91,8 +91,8 @@ export const PlantUMLEditor: React.FC<PlantUMLEditorProps> = ({
             autoClosingBrackets: 'always',
             autoClosingQuotes: 'always',
             autoIndent: 'keep',
-            formatOnPaste: true,
-            'bracketPairColorization.enabled': true,
+formatOnPaste: true,
+            formatOnType: true,
           }}
         />
       </div>

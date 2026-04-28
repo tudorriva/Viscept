@@ -52,6 +52,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   const panOffset = useRef({ x: 0, y: 0 });
   const renderIdRef = useRef(0);
   const svgNaturalSize = useRef({ width: 0, height: 0 });
+  const fitRetryTimerRef = useRef<number | null>(null);
 
   // Generation timer state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -74,20 +75,38 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     const svgEl = containerRef.current?.querySelector('svg');
     if (!svgEl || !viewportRef.current) return;
 
-    // Get natural dimensions from SVG attributes
+    // Get natural dimensions from SVG attributes or computed style
     let w = parseFloat(svgEl.getAttribute('width') || '0');
     let h = parseFloat(svgEl.getAttribute('height') || '0');
-    if (!w) w = parseFloat(svgEl.style.width) || 0;
-    if (!h) h = parseFloat(svgEl.style.height) || 0;
-    if (!w || !h) {
+    
+    // Try getting from style if attributes are missing or use getBBox as fallback
+    if (!w) {
+      const styleWidth = svgEl.style?.width;
+      if (styleWidth && styleWidth !== '100%') {
+        w = parseFloat(styleWidth);
+      }
+    }
+    if (!h) {
+      const styleHeight = svgEl.style?.height;
+      if (styleHeight && styleHeight !== '100%') {
+        h = parseFloat(styleHeight);
+      }
+    }
+    
+    // Fallback: use getBBox to measure content
+    if (!w || !h || isNaN(w) || isNaN(h)) {
       try {
         const bbox = svgEl.getBBox();
-        w = bbox.x + bbox.width + 10;
-        h = bbox.y + bbox.height + 10;
+        w = bbox.width + bbox.x + 20;
+        h = bbox.height + bbox.y + 20;
       } catch {
         w = 800; h = 600;
       }
     }
+    
+    // Ensure minimum dimensions
+    w = Math.max(w || 800, 100);
+    h = Math.max(h || 600, 100);
 
     svgNaturalSize.current = { width: w, height: h };
 
@@ -102,21 +121,54 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     svgEl.removeAttribute('style');
     svgEl.style.display = 'block';
     svgEl.style.overflow = 'visible';
+    svgEl.style.maxWidth = 'none';
+    svgEl.style.maxHeight = 'none';
+    svgEl.style.width = String(w) + 'px';
+    svgEl.style.height = String(h) + 'px';
 
-    // Calculate zoom to fit within viewport
+    // Simply center the SVG without any scaling
+    // This ensures text is never clipped
     const vw = viewportRef.current.clientWidth;
     const vh = viewportRef.current.clientHeight;
-    const PAD = 48;
-    const fitZoom = Math.max(0.05, Math.min((vw - PAD) / w, (vh - PAD) / h, 1.5));
-    const scaledW = w * fitZoom;
-    const scaledH = h * fitZoom;
 
-    setZoom(fitZoom);
+    setZoom(1);
     setPan({
-      x: Math.max(0, (vw - scaledW) / 2),
-      y: Math.max(0, (vh - scaledH) / 2),
+      x: (vw - w) / 2,
+      y: (vh - h) / 2,
     });
   }, []);
+
+  /** Schedule a delayed fit so fonts and layout can settle on first render. */
+  const scheduleAutoFit = useCallback(() => {
+    if (fitRetryTimerRef.current !== null) {
+      window.clearTimeout(fitRetryTimerRef.current);
+    }
+
+    fitRetryTimerRef.current = window.setTimeout(() => {
+      const run = async () => {
+        try {
+          if (typeof document !== 'undefined' && 'fonts' in document) {
+            await (document as Document & { fonts?: FontFaceSet }).fonts?.ready;
+          }
+        } catch {
+          // Ignore font-loading failures and fall back to DOM measurements.
+        }
+
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+          });
+        });
+
+        autoFitSvg();
+
+        // Retry once more after the browser has fully painted the SVG.
+        window.setTimeout(() => autoFitSvg(), 80);
+      };
+
+      void run();
+    }, 0);
+  }, [autoFitSvg]);
 
   useEffect(() => {
     if (!code.trim() || !containerRef.current) {
@@ -157,14 +209,19 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   const renderMermaid = async () => {
     if (!containerRef.current) return;
 
-    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    mermaid.initialize({ 
+      startOnLoad: false, 
+      theme: 'dark',
+      securityLevel: 'loose',
+      flowchart: { useMaxWidth: false }
+    });
 
     try {
       const id = `mmd-${++renderIdRef.current}`;
       const { svg } = await mermaid.render(id, code);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        autoFitSvg();
+        scheduleAutoFit();
       }
     } catch (error) {
       throw new Error(`Mermaid render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -183,7 +240,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       const { svg } = await mermaid.render(id, mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        autoFitSvg();
+        scheduleAutoFit();
       }
     } catch (error) {
       throw new Error(`DBML render failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -202,12 +259,34 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       const { svg } = await mermaid.render(id, mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
-        autoFitSvg();
+        scheduleAutoFit();
       }
     } catch (error) {
       throw new Error(`Graphviz render failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
+
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl || typeof ResizeObserver === 'undefined') return undefined;
+
+    const observer = new ResizeObserver(() => {
+      if (code.trim() && effectiveMode === 'preview') {
+        scheduleAutoFit();
+      }
+    });
+
+    observer.observe(viewportEl);
+    return () => observer.disconnect();
+  }, [code, effectiveMode, scheduleAutoFit]);
+
+  useEffect(() => {
+    return () => {
+      if (fitRetryTimerRef.current !== null) {
+        window.clearTimeout(fitRetryTimerRef.current);
+      }
+    };
+  }, []);
 
   const convertDBMLToMermaid = (dbml: string): string => {
     const lines = ['erDiagram'];
@@ -449,14 +528,10 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     }
     const vw = viewportRef.current.clientWidth;
     const vh = viewportRef.current.clientHeight;
-    const PAD = 48;
-    const fitZoom = Math.max(0.05, Math.min((vw - PAD) / w, (vh - PAD) / h, 1.5));
-    const scaledW = w * fitZoom;
-    const scaledH = h * fitZoom;
-    setZoom(fitZoom);
+    setZoom(1);
     setPan({
-      x: Math.max(0, (vw - scaledW) / 2),
-      y: Math.max(0, (vh - scaledH) / 2),
+      x: (vw - w) / 2,
+      y: (vh - h) / 2,
     });
   }, []);
 
@@ -631,9 +706,21 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
             position: 'absolute',
             top: 0,
             left: 0,
+            width: 'max-content',
+            height: 'max-content',
+            minWidth: '100%',
+            minHeight: '100%',
           }}
         >
-          <div ref={containerRef} style={{ display: 'inline-block' }} />
+          <div 
+            ref={containerRef} 
+            style={{ 
+              display: 'inline-block',
+              whiteSpace: 'pre',
+              minWidth: 'max-content',
+              minHeight: 'max-content',
+            }} 
+          />
         </div>
 
         {/* Zoom controls */}
