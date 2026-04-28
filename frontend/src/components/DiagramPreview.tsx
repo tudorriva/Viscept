@@ -53,6 +53,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   const renderIdRef = useRef(0);
   const svgNaturalSize = useRef({ width: 0, height: 0 });
   const fitRetryTimerRef = useRef<number | null>(null);
+  const renderAbortRef = useRef(0);
 
   // Generation timer state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -171,6 +172,8 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   }, [autoFitSvg]);
 
   useEffect(() => {
+    const abortId = ++renderAbortRef.current;
+
     if (!code.trim() || !containerRef.current) {
       setError(null);
       // Clear stale diagram when code becomes empty (e.g. diagram type switch)
@@ -189,6 +192,12 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       setError(null);
 
       try {
+        if (typeof document !== 'undefined' && 'fonts' in document) {
+          await (document as Document & { fonts?: FontFaceSet }).fonts?.ready;
+        }
+
+        if (renderAbortRef.current !== abortId) return;
+
         if (language === 'mermaid') {
           await renderMermaid();
         } else if (language === 'dbml') {
@@ -197,8 +206,10 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
           await renderGraphviz();
         }
       } catch (err) {
+        if (renderAbortRef.current !== abortId) return;
         setError(err instanceof Error ? err.message : String(err));
       } finally {
+        if (renderAbortRef.current !== abortId) return;
         setLoading(false);
       }
     };
