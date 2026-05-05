@@ -66,6 +66,19 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     engineRef.current = new VisualEditorEngine({ history, language: 'dbml' });
   }, [history]);
 
+  function handleInlineNodeLabelChange(nodeId: string, newLabel: string) {
+    if (!vcmRef.current || !engineRef.current) return;
+
+    const updated = engineRef.current.updateNodeLabel(vcmRef.current, nodeId, newLabel);
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges);
+    emitCode(updated, true);
+  }
+
   // ── Code → VCM → React Flow sync ───────────────────────────────────────
 
   useEffect(() => {
@@ -85,7 +98,7 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     try {
       const vcm = dslToVCM(currentCode, 'dbml');
       
-      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm);
+      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm, handleInlineNodeLabelChange);
       
       setNodes(rfNodes);
       setEdges(rfEdges);
@@ -122,8 +135,8 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
 
   // ── VCM → DSL serialization ─────────────────────────────────────────────
 
-  const emitCode = useCallback((vcm: any) => {
-    if (codeDrivenGenRef.current !== 0) return;
+  const emitCode = useCallback((vcm: any, force = false) => {
+    if (!force && codeDrivenGenRef.current !== 0) return;
     try {
       const newCode = vcmToDSL(vcm);
       onCodeChange(newCode);
@@ -150,10 +163,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
       vcmRef.current = updated;
       engineRef.current.recordState(updated);
 
-      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated);
+      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
       setNodes(rfNodes);
       setEdges(rfEdges);
-      emitCode(updated);
+      emitCode(updated, true);
     } finally {
       addingTableRef.current = false;
     }
@@ -168,10 +181,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [emitCode, setNodes, setEdges]);
 
   const handleAutoLayout = useCallback(() => {
@@ -181,10 +194,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes } = vcmToReactFlow(updated);
+    const { nodes: rfNodes } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }));
-    emitCode(updated);
+    emitCode(updated, true);
   }, [emitCode, setNodes, fitView]);
 
   const handleUndo = useCallback(() => {
@@ -194,10 +207,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     if (!previous) return;
 
     vcmRef.current = previous;
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(previous);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(previous, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(previous);
+    emitCode(previous, true);
   }, [emitCode, setNodes, setEdges]);
 
   const handleRedo = useCallback(() => {
@@ -207,10 +220,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     if (!next) return;
 
     vcmRef.current = next;
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(next);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(next, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(next);
+    emitCode(next, true);
   }, [emitCode, setNodes, setEdges]);
 
   // Keyboard shortcuts (now after handlers are defined)
@@ -247,7 +260,7 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
       const updated = reactFlowToVCM(nextNodes, edges, vcmRef.current);
       vcmRef.current = updated;
       history.push(updated);
-      emitCode(updated);
+      emitCode(updated, true);
     },
     [nodes, edges, onNodesChange, emitCode, history]
   );
@@ -261,7 +274,7 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
       const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
       vcmRef.current = updated;
       history.push(updated);
-      emitCode(updated);
+      emitCode(updated, true);
     },
     [nodes, edges, onEdgesChange, emitCode, history]
   );
@@ -278,7 +291,7 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
         });
         vcmRef.current = updated;
         engineRef.current.recordState(updated);
-        emitCode(updated);
+        emitCode(updated, true);
       }
     },
     [edges, setEdges, emitCode]
@@ -293,10 +306,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [selectedTableId, emitCode, setNodes, setEdges]);
 
   const handleRemoveField = useCallback((fieldIndex: number) => {
@@ -306,10 +319,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [selectedTableId, emitCode, setNodes, setEdges]);
 
   const handleCreateRelationship = useCallback((targetTableId: string, sourceColumn: string) => {
@@ -324,10 +337,10 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [selectedTableId, emitCode, setNodes, setEdges]);
 
   const selectedTable = selectedTableId && vcmRef.current

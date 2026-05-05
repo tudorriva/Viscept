@@ -499,6 +499,7 @@ export function visualEdgeToRF(vEdge: VisualEdge): Edge {
     },
     markerStart: arrowToMarker(vEdge.sourceArrow, strokeColor),
     markerEnd: arrowToMarker(vEdge.targetArrow, strokeColor),
+    labelShowBg: false,
     labelStyle: { fill: '#cbd5e1', fontSize: 11 },
   } as Edge;
 }

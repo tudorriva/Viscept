@@ -67,6 +67,19 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     engineRef.current = new VisualEditorEngine({ history, language: 'mermaid' });
   }, [history]);
 
+  function handleInlineNodeLabelChange(nodeId: string, newLabel: string) {
+    if (!vcmRef.current || !engineRef.current) return;
+
+    const updated = engineRef.current.updateNodeLabel(vcmRef.current, nodeId, newLabel);
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges);
+    emitCode(updated, true);
+  }
+
   // ── Code → VCM → React Flow sync ───────────────────────────────────────
 
   useEffect(() => {
@@ -86,7 +99,7 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     try {
       const vcm = dslToVCM(currentCode, 'mermaid');
       
-      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm);
+      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm, handleInlineNodeLabelChange);
       
       setNodes(rfNodes);
       setEdges(rfEdges);
@@ -123,8 +136,8 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
 
   // ── VCM → DSL serialization ─────────────────────────────────────────────
 
-  const emitCode = useCallback((vcm: any) => {
-    if (codeDrivenGenRef.current !== 0) return;
+  const emitCode = useCallback((vcm: any, force = false) => {
+    if (!force && codeDrivenGenRef.current !== 0) return;
     try {
       const newCode = vcmToDSL(vcm);
       onCodeChange(newCode);
@@ -150,10 +163,10 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
       vcmRef.current = updated;
       engineRef.current.recordState(updated);
 
-      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated);
+      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
       setNodes(rfNodes);
       setEdges(rfEdges);
-      emitCode(updated);
+      emitCode(updated, true);
     } finally {
       addingNodeRef.current = false;
     }
@@ -168,10 +181,10 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [emitCode, setNodes, setEdges]);
 
   const handleAutoLayout = useCallback(() => {
@@ -181,10 +194,10 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes } = vcmToReactFlow(updated);
+    const { nodes: rfNodes } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }));
-    emitCode(updated);
+    emitCode(updated, true);
   }, [emitCode, setNodes, fitView]);
 
   const handleUndo = useCallback(() => {
@@ -194,10 +207,10 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     if (!previous) return;
 
     vcmRef.current = previous;
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(previous);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(previous, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(previous);
+    emitCode(previous, true);
   }, [emitCode, setNodes, setEdges]);
 
   const handleRedo = useCallback(() => {
@@ -207,10 +220,10 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     if (!next) return;
 
     vcmRef.current = next;
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(next);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(next, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
-    emitCode(next);
+    emitCode(next, true);
   }, [emitCode, setNodes, setEdges]);
 
   // Keyboard shortcuts (now after handlers are defined)
@@ -254,7 +267,7 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
       const updated = reactFlowToVCM(nextNodes, edges, vcmRef.current);
       vcmRef.current = updated;
       history.push(updated);
-      emitCode(updated);
+      emitCode(updated, true);
     },
     [nodes, edges, onNodesChange, emitCode, history]
   );
@@ -268,7 +281,7 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
       const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
       vcmRef.current = updated;
       history.push(updated);
-      emitCode(updated);
+      emitCode(updated, true);
     },
     [nodes, edges, onEdgesChange, emitCode, history]
   );
@@ -284,7 +297,7 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
         });
         vcmRef.current = updated;
         engineRef.current.recordState(updated);
-        emitCode(updated);
+        emitCode(updated, true);
       }
     },
     [edges, setEdges, emitCode]
@@ -299,9 +312,9 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes } = vcmToReactFlow(updated);
+    const { nodes: rfNodes } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [selectedNodeId, emitCode, setNodes]);
 
   const handleNodeShapeChange = useCallback((newShape: any) => {
@@ -311,9 +324,9 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { nodes: rfNodes } = vcmToReactFlow(updated);
+    const { nodes: rfNodes } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [selectedNodeId, emitCode, setNodes]);
 
   const handleEdgeLabelChange = useCallback((newLabel: string) => {
@@ -323,9 +336,9 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { edges: rfEdges } = vcmToReactFlow(updated);
+    const { edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setEdges(rfEdges);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [selectedEdgeId, emitCode, setEdges]);
 
   const handleEdgeDelete = useCallback(() => {
@@ -335,10 +348,10 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { edges: rfEdges } = vcmToReactFlow(updated);
+    const { edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setEdges(rfEdges);
     setSelectedEdgeId(null);
-    emitCode(updated);
+    emitCode(updated, true);
   }, [selectedEdgeId, emitCode, setEdges]);
 
   // Get selected node/edge data from VCM

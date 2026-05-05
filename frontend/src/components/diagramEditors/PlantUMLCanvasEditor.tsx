@@ -50,6 +50,25 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
   const lastCodeRef = useRef(code);
   const history = useVCMHistory();
 
+  function handleInlineNodeLabelChange(nodeId: string, newLabel: string) {
+    if (!vcmRef.current) return;
+
+    const updated = {
+      ...vcmRef.current,
+      nodes: vcmRef.current.nodes.map((node: any) =>
+        node.id === nodeId ? { ...node, label: newLabel } : node
+      ),
+      version: (vcmRef.current.version || 0) + 1,
+    };
+
+    vcmRef.current = updated;
+    history.push(updated);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges);
+    emitCode(updated, true);
+  }
+
   // ── Code → VCM → React Flow sync ───────────────────────────────────────
 
   useEffect(() => {
@@ -68,7 +87,7 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
     try {
       const vcm = dslToVCM(code, 'plantuml');
       
-      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm);
+      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm, handleInlineNodeLabelChange);
       
       setNodes(rfNodes);
       setEdges(rfEdges);
@@ -103,8 +122,8 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
 
   // ── VCM → DSL serialization ─────────────────────────────────────────────
 
-  const emitCode = useCallback((vcm: any) => {
-    if (codeDrivenGenRef.current !== 0) return;
+  const emitCode = useCallback((vcm: any, force = false) => {
+    if (!force && codeDrivenGenRef.current !== 0) return;
     try {
       const newCode = vcmToDSL(vcm);
       onCodeChange(newCode);
@@ -123,7 +142,7 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
         const updated = reactFlowToVCM(nextNodes, edges, vcmRef.current);
         vcmRef.current = updated;
         history.push(updated);
-        emitCode(updated);
+        emitCode(updated, true);
       }
     },
     [nodes, edges, onNodesChange, emitCode, history]
@@ -136,7 +155,7 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
       if (vcmRef.current) {
         const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
         vcmRef.current = updated;
-        emitCode(updated);
+        emitCode(updated, true);
       }
     },
     [nodes, edges, onEdgesChange, emitCode]
@@ -149,7 +168,7 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
       if (vcmRef.current) {
         const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
         vcmRef.current = updated;
-        emitCode(updated);
+        emitCode(updated, true);
       }
     },
     [edges, setEdges, nodes, emitCode]
@@ -158,7 +177,7 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
   const handleAutoLayout = useCallback(() => {
     if (vcmRef.current) {
       const layouted = autoLayout(vcmRef.current, { direction: 'TB' });
-      const { nodes: rfNodes } = vcmToReactFlow(layouted);
+      const { nodes: rfNodes } = vcmToReactFlow(layouted, handleInlineNodeLabelChange);
       setNodes(rfNodes);
       requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }));
     }

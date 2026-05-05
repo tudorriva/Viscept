@@ -171,6 +171,32 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     }, 0);
   }, [autoFitSvg]);
 
+  /** Normalize Mermaid SVG output so labels don't render with opaque white boxes. */
+  const normalizeMermaidSvg = useCallback(() => {
+    const svgEl = containerRef.current?.querySelector('svg');
+    if (!svgEl) return;
+
+    svgEl.querySelectorAll('g.edgeLabel rect, g.edgeLabel foreignObject, g.label rect, g.label foreignObject')
+      .forEach((el) => {
+        if (el instanceof SVGElement) {
+          el.setAttribute('fill', 'transparent');
+          el.setAttribute('stroke', 'none');
+        }
+        if (el instanceof HTMLElement) {
+          el.style.background = 'transparent';
+        }
+      });
+
+    svgEl.querySelectorAll('rect').forEach((rect) => {
+      const cls = rect.getAttribute('class') || '';
+      const fill = (rect.getAttribute('fill') || '').toLowerCase();
+      if (/label|edge/i.test(cls) || fill === '#fff' || fill === '#ffffff' || fill === 'white') {
+        rect.setAttribute('fill', 'transparent');
+        rect.setAttribute('stroke', 'none');
+      }
+    });
+  }, []);
+
   useEffect(() => {
     const abortId = ++renderAbortRef.current;
 
@@ -224,7 +250,11 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       startOnLoad: false, 
       theme: 'dark',
       securityLevel: 'loose',
-      flowchart: { useMaxWidth: false }
+      flowchart: { useMaxWidth: false, htmlLabels: false },
+      themeVariables: {
+        edgeLabelBackground: 'transparent',
+        background: 'transparent',
+      },
     });
 
     try {
@@ -232,6 +262,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       const { svg } = await mermaid.render(id, code);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
+        normalizeMermaidSvg();
         scheduleAutoFit();
       }
     } catch (error) {
@@ -244,13 +275,21 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     const mermaidCode = convertDBMLToMermaid(code);
     if (!containerRef.current) return;
 
-    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      themeVariables: {
+        edgeLabelBackground: 'transparent',
+        background: 'transparent',
+      },
+    });
 
     try {
       const id = `dbml-${++renderIdRef.current}`;
       const { svg } = await mermaid.render(id, mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
+        normalizeMermaidSvg();
         scheduleAutoFit();
       }
     } catch (error) {
@@ -263,13 +302,21 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     const mermaidCode = convertGraphvizToMermaid(code);
     if (!containerRef.current) return;
 
-    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      themeVariables: {
+        edgeLabelBackground: 'transparent',
+        background: 'transparent',
+      },
+    });
 
     try {
       const id = `gv-${++renderIdRef.current}`;
       const { svg } = await mermaid.render(id, mermaidCode);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
+        normalizeMermaidSvg();
         scheduleAutoFit();
       }
     } catch (error) {
