@@ -13,6 +13,8 @@ interface DiagramPreviewProps {
   isGenerating?: boolean;
   /** Current prompt text (used to estimate generation time) */
   prompt?: string;
+  /** Callback when a render error occurs */
+  onRenderError?: (error: string) => void;
   /**
    * When true the Preview/Editor mode toggle is hidden and the component is
    * locked to preview mode.  Pass this when DiagramPreview is embedded inside
@@ -33,7 +35,7 @@ function estimateGenerationTime(prompt: string, language: string): number {
   return Math.round((baseTime + wordCount * perWordTime + complexityBonus) * langMultiplier);
 }
 
-export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false, prompt = '', hideToggle = false }) => {
+export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false, prompt = '', hideToggle = false, onRenderError }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -233,7 +235,9 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
         }
       } catch (err) {
         if (renderAbortRef.current !== abortId) return;
-        setError(err instanceof Error ? err.message : String(err));
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setError(errorMsg);
+        onRenderError?.(errorMsg);
       } finally {
         if (renderAbortRef.current !== abortId) return;
         setLoading(false);

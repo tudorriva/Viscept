@@ -152,9 +152,14 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
 
     addingTableRef.current = true;
     try {
+      const position = {
+        x: 120 + nodes.length * 30,
+        y: 120 + nodes.length * 30,
+      };
+
       let updated = engineRef.current.addNode(vcmRef.current, {
-        x: 250,
-        y: 250,
+        x: position.x,
+        y: position.y,
         shape: 'table',
         label: 'new_table',
         fields: [],
@@ -162,15 +167,24 @@ const DBMLCanvasEditorInner: React.FC<DBMLCanvasEditorProps> = ({ code, onCodeCh
 
       vcmRef.current = updated;
       engineRef.current.recordState(updated);
+      const createdTableId = updated.nodes[updated.nodes.length - 1]?.id;
 
       const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
       setNodes(rfNodes);
       setEdges(rfEdges);
+      if (createdTableId) {
+        setSelectedTableId(createdTableId);
+      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          fitView({ padding: 0.25, duration: 200 });
+        });
+      });
       emitCode(updated, true);
     } finally {
       addingTableRef.current = false;
     }
-  }, [emitCode, setNodes, setEdges]);
+  }, [nodes, emitCode, setNodes, setEdges, fitView]);
 
   const handleDeleteSelected = useCallback(() => {
     if (!vcmRef.current || !engineRef.current) return;

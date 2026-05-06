@@ -50,6 +50,34 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
   const lastCodeRef = useRef(code);
   const history = useVCMHistory();
 
+  const handleAddElement = useCallback(() => {
+    if (!vcmRef.current) return;
+
+    const index = vcmRef.current.nodes.length;
+    const updated = {
+      ...vcmRef.current,
+      nodes: [
+        ...vcmRef.current.nodes,
+        {
+          id: `e${Date.now()}`,
+          label: `Element ${index + 1}`,
+          shape: 'roundedRect',
+          position: { x: 140 + index * 40, y: 120 + index * 40 },
+          ports: [],
+        },
+      ],
+      version: (vcmRef.current.version || 0) + 1,
+    };
+
+    vcmRef.current = updated;
+    history.push(updated);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges);
+    emitCode(updated, true);
+    requestAnimationFrame(() => fitView({ padding: 0.25, duration: 200 }));
+  }, [fitView, history]);
+
   function handleInlineNodeLabelChange(nodeId: string, newLabel: string) {
     if (!vcmRef.current) return;
 
@@ -204,6 +232,7 @@ const PlantUMLCanvasEditorInner: React.FC<PlantUMLCanvasEditorProps> = ({ code, 
             style={{ backgroundColor: `${theme.colors.bg.secondary}99` }}
           >
             <button
+              onClick={handleAddElement}
               className="p-2 rounded text-sm flex items-center gap-2"
               style={{
                 backgroundColor: theme.colors.bg.tertiary,

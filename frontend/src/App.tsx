@@ -18,8 +18,8 @@ import { useChat } from './hooks/useChat';
 import { useSettings } from './hooks/useSettings';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useUIStore } from './store/uiStore';
-import { formatCode as formatCodeAPI, fetchDemo, fetchHealth, validateDiagram, ValidationResult } from './utils/api';
-import { exportAsPNG, exportAsSVG, exportAsPDF } from './utils/exporters';
+import { formatCode as formatCodeAPI, fetchDemo, fetchHealth, validateDiagram, correctDiagram, ValidationResult, type CorrectRequest, type GenerateResponse } from './utils/api';
+import { exportAsPNG, exportAsSVG, exportAsPDF, type ExportOptions } from './utils/exporters';
 import type { DiagramExample } from './utils/examples';
 import './index.css';
 
@@ -45,6 +45,7 @@ export const App: React.FC = () => {
   const [localError, setLocalError] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [isAutoCorrecting, setIsAutoCorrecting] = useState(false);
 
   const error = chat.error || localError;
 
@@ -122,21 +123,49 @@ export const App: React.FC = () => {
   );
 
   // ── Export helpers ────────────────────────────────────────────────────────
-  const handleExportPNG = useCallback(async () => {
-    if (previewRef.current) await exportAsPNG(previewRef.current, 'diagram');
+  const handleExportPNG = useCallback(async (options?: ExportOptions) => {
+    if (previewRef.current) await exportAsPNG(previewRef.current, 'diagram', options);
   }, []);
 
-  const handleExportSVG = useCallback(async () => {
-    if (previewRef.current) await exportAsSVG(previewRef.current, 'diagram');
+  const handleExportSVG = useCallback(async (options?: ExportOptions) => {
+    if (previewRef.current) await exportAsSVG(previewRef.current, 'diagram', options);
   }, []);
 
-  const handleExportPDF = useCallback(async () => {
-    if (previewRef.current) await exportAsPDF(previewRef.current, 'diagram');
+  const handleExportPDF = useCallback(async (options?: ExportOptions) => {
+    if (previewRef.current) await exportAsPDF(previewRef.current, 'diagram', options);
   }, []);
 
   const handleCopyCode = useCallback(() => {
     if (code) navigator.clipboard.writeText(code).catch(() => setLocalError('Copy failed'));
   }, [code]);
+
+  const handleRenderError = useCallback(
+    async (errorMsg: string) => {
+      // Only auto-correct if user hasn't manually disabled it and AI isn't already working
+      if (!code.trim() || chat.isLoading || isAutoCorrecting) return;
+
+      setIsAutoCorrecting(true);
+      try {
+        const firstUser = messages.find((m) => m.role === 'user');
+        const corrected = await correctDiagram({
+          code,
+          diagramType,
+          renderError: errorMsg,
+          originalPrompt: firstUser?.content ?? 'User diagram',
+        });
+
+        if (corrected.code) {
+          chat.updateDiagramCode(corrected.code);
+        }
+      } catch (err) {
+        // Silently fail auto-correction; user sees the error already
+        console.error('[Auto-correct] Failed:', err);
+      } finally {
+        setIsAutoCorrecting(false);
+      }
+    },
+    [code, diagramType, chat, messages, isAutoCorrecting],
+  );
 
   // ── Settings adapter (typed → generic for SettingsDialog) ────────────────
   const handleSettingsChange = useCallback(
@@ -173,11 +202,12 @@ export const App: React.FC = () => {
         /* workspace */
         code={code}
         language={diagramType}
-        isGenerating={chat.isLoading}
+        isGenerating={chat.isLoading || isAutoCorrecting}
         prompt={messages[0]?.content ?? ''}
         previewRef={previewRef}
         onCodeChange={handleCodeChange}
         onFormatCode={handleFormatCode}
+        onRenderError={handleRenderError}
         /* validation */
         validation={validationResult}
         isValidating={isValidating}

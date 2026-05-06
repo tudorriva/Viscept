@@ -195,13 +195,13 @@ function parseMermaidFlowchart(lines: string[]): ParsedDiagram {
     // Enhanced regex to capture embedded text like "A -- click here --> B"
     let edgeLabel: string | undefined;
     let edgeMatch = line.match(
-      /^(\w+)(?:\[.*?\]|{.*?}|>.*?]|[^\s\[{>-]*)?\s*(-+(?:\.-+)?-?>|=+>|--+>?|~~>|--+\|[^|]*\|--+>?|-+>?\|[^|]*\|)\s*(\w+)(?:\[.*?\]|{.*?}|>.*?])?/
+      /^([A-Za-z0-9_-]+)(?:\[.*?\]|{.*?}|>.*?]|[^\s\[{>-]*)?\s*(-+(?:\.-+)?-?>|=+>|--+>?|~~>|--+\|[^|]*\|--+>?|-+>?\|[^|]*\|)\s*([A-Za-z0-9_-]+)(?:\[.*?\]|{.*?}|>.*?])?/
     );
 
     // If standard regex didn't match, try the alternate "-- text -->" format
     if (!edgeMatch) {
       edgeMatch = line.match(
-        /^(\w+)(?:\[.*?\]|{.*?}|>.*?]|[^\s\[{>-]*)?\s*--\s*(.+?)\s*-+>?\s*(\w+)(?:\[.*?\]|{.*?}|>.*?])?/
+        /^([A-Za-z0-9_-]+)(?:\[.*?\]|{.*?}|>.*?]|[^\s\[{>-]*)?\s*--\s*(.+?)\s*-+>?\s*([A-Za-z0-9_-]+)(?:\[.*?\]|{.*?}|>.*?])?/
       );
       if (edgeMatch) {
         edgeLabel = edgeMatch[2]?.trim();
@@ -238,7 +238,7 @@ function parseMermaidFlowchart(lines: string[]): ParsedDiagram {
     }
 
     // Match standalone node definitions: A["Label"], B{Decision}, C(Rounded)
-    const nodeMatch = line.match(/^(\w+)\s*[\[({]"?([^"\]})]+)"?[\])}]/);
+    const nodeMatch = line.match(/^([A-Za-z0-9_-]+)\s*[\[({]"?([^"\]})]+)"?[\])}]/);
     if (nodeMatch && !nodeIds.has(nodeMatch[1])) {
       rawNodes.push({ id: nodeMatch[1], label: nodeMatch[2] });
       nodeIds.add(nodeMatch[1]);
@@ -253,16 +253,22 @@ function parseMermaidFlowchart(lines: string[]): ParsedDiagram {
 
 /** Extract a Mermaid node label from inline definition like A["Label"] */
 function extractNodeLabel(line: string, nodeId: string): string | null {
-  const re = new RegExp(`${nodeId}\\s*[\\[({]"?([^"\\]})]+)"?[\\])}]`);
+  const escaped = escapeRegExp(nodeId);
+  const re = new RegExp(`${escaped}\\s*[\\[({]"?([^"\\]})]+)"?[\\])}]`);
   const m = line.match(re);
   return m ? m[1].trim() : null;
 }
 
 function extractNodeLabelFromRest(line: string, nodeId: string): string | null {
   // Look for the target node definition after the arrow
-  const re = new RegExp(`${nodeId}\\s*[\\[({]"?([^"\\]})]+)"?[\\])}]`);
+  const escaped = escapeRegExp(nodeId);
+  const re = new RegExp(`${escaped}\\s*[\\[({]"?([^"\\]})]+)"?[\\])}]`);
   const m = line.match(re);
   return m ? m[1].trim() : null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

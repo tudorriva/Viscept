@@ -5,6 +5,7 @@ import {
   PanelRightOpen, PanelRightClose,
   Settings, BookOpen,
   Search,
+  Download,
 } from 'lucide-react';
 import { IconLogo } from '../../assets/logos';
 import { AnimatedButton } from '../ui/AnimatedButton';
@@ -34,6 +35,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     rightPanelOpen,  toggleRightPanel,
     setCommandPaletteOpen,
     setSettingsOpen,
+    setExportPanelOpen,
   } = useUIStore();
 
   const [time, setTime] = useState(() =>
@@ -144,6 +146,18 @@ export const TopBar: React.FC<TopBarProps> = ({
           className="text-text-muted hover:text-text-primary"
         >
           <BookOpen size={16} />
+        </AnimatedButton>
+
+        {/* Export */}
+        <AnimatedButton
+          variant="ghost"
+          size="icon"
+          onClick={() => setExportPanelOpen(true)}
+          subtle
+          title="Export diagram"
+          className="text-text-muted hover:text-text-primary"
+        >
+          <Download size={16} />
         </AnimatedButton>
 
         {/* Settings */}

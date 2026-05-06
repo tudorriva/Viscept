@@ -153,24 +153,35 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
 
     addingNodeRef.current = true;
     try {
+      const position = {
+        x: 120 + nodes.length * 30,
+        y: 120 + nodes.length * 30,
+      };
+
       let updated = engineRef.current.addNode(vcmRef.current, {
-        x: 250,
-        y: 250,
+        x: position.x,
+        y: position.y,
         shape: 'rect',
         label: 'New Node',
       });
 
       vcmRef.current = updated;
       engineRef.current.recordState(updated);
+      const createdNodeId = updated.nodes[updated.nodes.length - 1]?.id;
 
       const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
       setNodes(rfNodes);
       setEdges(rfEdges);
+      if (createdNodeId) {
+        setSelectedNodeId(createdNodeId);
+        setSelectedEdgeId(null);
+      }
+      requestAnimationFrame(() => fitView({ padding: 0.25, duration: 200 }));
       emitCode(updated, true);
     } finally {
       addingNodeRef.current = false;
     }
-  }, [emitCode, setNodes, setEdges]);
+  }, [nodes, emitCode, setNodes, setEdges, fitView]);
 
   const handleDeleteSelected = useCallback(() => {
     if (!vcmRef.current || !engineRef.current) return;

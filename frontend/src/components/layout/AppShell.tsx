@@ -9,6 +9,7 @@ import { SettingsDialog } from '../ui/SettingsDialog';
 import { CommandPalette } from '../ui/CommandPalette';
 import type { ChatMessage, ChatSessionMeta, DiagramType } from '../../types/chat';
 import type { ValidationResult } from '../../utils/api';
+import type { ExportOptions } from '../../utils/exporters';
 
 interface AppShellProps {
   /* Identity */
@@ -41,6 +42,7 @@ interface AppShellProps {
   previewRef: React.RefObject<HTMLDivElement>;
   onCodeChange: (code: string) => void;
   onFormatCode: () => void;
+  onRenderError?: (error: string) => void;
 
   /* Validation */
   validation: ValidationResult | null;
@@ -49,9 +51,9 @@ interface AppShellProps {
   onFix?: () => void;
 
   /* Export helpers (used by ExportPanel) */
-  onExportPNG: () => Promise<void>;
-  onExportSVG: () => Promise<void>;
-  onExportPDF: () => Promise<void>;
+  onExportPNG: (options?: ExportOptions) => Promise<void>;
+  onExportSVG: (options?: ExportOptions) => Promise<void>;
+  onExportPDF: (options?: ExportOptions) => Promise<void>;
   onCopyCode: () => void;
 
   /* Settings */
