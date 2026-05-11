@@ -75,4 +75,15 @@ describe('Diagram API Endpoints', () => {
       expect(res.body).toHaveProperty('graphviz');
     });
   });
+
+  describe('POST /api/classify', () => {
+    it('should return plantuml for explicit PlantUML prompts', async () => {
+      const res = await request(app).post('/api/classify').send({
+        prompt: 'Create a PlantUML sequence diagram for user login',
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('diagramType', 'plantuml');
+    });
+  });
 });

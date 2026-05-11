@@ -8,7 +8,7 @@ import { formatCode as formatCodeService } from '../services/formatterService.js
 import { getDemoData as getDemoDataService } from '../services/demoService.js';
 import { runPipeline, validateExistingDiagram, PipelineResult } from '../services/pipelineService.js';
 import { checkVLMHealth } from '../services/visualValidationService.js';
-import { checkRenderingCapabilities } from '../services/renderingService.js';
+import { checkRenderingCapabilities, renderDiagramToSvg } from '../services/renderingService.js';
 
 interface GenerateRequest {
   prompt: string;
@@ -33,6 +33,12 @@ interface CorrectRequest {
 interface FormatRequest {
   code: string;
   language: string;
+}
+
+interface RenderRequest {
+  code: string;
+  diagramType: string;
+  format?: 'svg';
 }
 
 /**
@@ -174,6 +180,45 @@ export async function validateDiagram(req: Request, res: Response): Promise<void
     console.error('[Controller] Error in validateDiagram:', error);
     res.status(500).json({
       error: 'Failed to validate diagram',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+/**
+ * POST /api/render - Render diagram code for frontend preview/export.
+ */
+export async function renderDiagram(req: Request, res: Response): Promise<void> {
+  const { code, diagramType, format = 'svg' } = req.body as RenderRequest;
+
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'code is required and must be a string' });
+    return;
+  }
+
+  const validTypes = ['plantuml'];
+  if (!diagramType || typeof diagramType !== 'string' || !validTypes.includes(diagramType)) {
+    res.status(400).json({ error: `Invalid diagramType. Must be one of: ${validTypes.join(', ')}` });
+    return;
+  }
+
+  if (format !== 'svg') {
+    res.status(400).json({ error: 'Only SVG rendering is supported by this endpoint' });
+    return;
+  }
+
+  try {
+    const result = await renderDiagramToSvg(code, diagramType);
+    res.json({
+      svg: result.svg,
+      language: diagramType,
+      format: result.format,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Controller] Error in renderDiagram:', error);
+    res.status(500).json({
+      error: 'Failed to render diagram',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }

@@ -19,8 +19,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import axios from 'axios';
+import plantumlEncoder from 'plantuml-encoder';
 
 const execAsync = promisify(exec);
+const PLANTUML_SERVER = (process.env.PLANTUML_SERVER || 'https://www.plantuml.com/plantuml')
+  .replace(/\/+$/, '')
+  .replace(/\/(?:svg|png|txt|uml)$/i, '');
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -30,6 +35,11 @@ export interface RenderResult {
   height: number;
   format: 'png';
   tempPath?: string;    // path to temp file (cleaned up automatically)
+}
+
+export interface SvgRenderResult {
+  svg: string;
+  format: 'svg';
 }
 
 // ── Temp Directory Management ──────────────────────────────────────────────────
@@ -134,12 +144,64 @@ async function renderPlantUML(code: string): Promise<RenderResult> {
 
     throw new Error('plantuml.jar did not produce output');
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[Renderer] PlantUML rendering failed:', msg);
-    throw new Error(msg);
+    const jarMsg = error instanceof Error ? error.message : String(error);
+    console.warn('[Renderer] plantuml.jar PNG rendering failed, trying PlantUML server:', jarMsg);
+
+    try {
+      const encoded = plantumlEncoder.encode(code);
+      const response = await axios.get(`${PLANTUML_SERVER}/png/${encoded}`, {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+      });
+      const buffer = Buffer.from(response.data);
+      return {
+        imageBase64: buffer.toString('base64'),
+        width: 1200,
+        height: 800,
+        format: 'png',
+      };
+    } catch (serverError) {
+      const msg = serverError instanceof Error ? serverError.message : String(serverError);
+      console.error('[Renderer] PlantUML rendering failed:', msg);
+      throw new Error(msg);
+    }
   } finally {
     cleanupTemp(inputPath);
     cleanupTemp(outputPath);
+  }
+}
+
+async function renderPlantUMLSvg(code: string): Promise<SvgRenderResult> {
+  const inputPath = tempFilePath('puml');
+
+  try {
+    fs.writeFileSync(inputPath, code, 'utf-8');
+
+    await execAsync(
+      `java -jar plantuml.jar -tsvg -o "${path.dirname(inputPath)}" "${inputPath}"`,
+      { timeout: 30000 }
+    );
+
+    const expectedOutput = inputPath.replace('.puml', '.svg');
+    if (fs.existsSync(expectedOutput)) {
+      const svg = fs.readFileSync(expectedOutput, 'utf-8');
+      cleanupTemp(expectedOutput);
+      return { svg, format: 'svg' };
+    }
+
+    throw new Error('plantuml.jar did not produce SVG output');
+  } catch (error) {
+    const jarMsg = error instanceof Error ? error.message : String(error);
+    console.warn('[Renderer] plantuml.jar SVG rendering failed, trying PlantUML server:', jarMsg);
+
+    const encoded = plantumlEncoder.encode(code);
+    const response = await axios.get(`${PLANTUML_SERVER}/svg/${encoded}`, {
+      responseType: 'text',
+      timeout: 30000,
+    });
+    return { svg: response.data, format: 'svg' };
+  } finally {
+    cleanupTemp(inputPath);
   }
 }
 
@@ -393,6 +455,20 @@ export async function renderDiagramToImage(
       return renderDBML(code);
     default:
       throw new Error(`Unsupported diagram type for rendering: ${diagramType}`);
+  }
+}
+
+export async function renderDiagramToSvg(
+  code: string,
+  diagramType: string
+): Promise<SvgRenderResult> {
+  console.log(`[Renderer] Rendering ${diagramType} diagram to SVG (${code.length} chars)...`);
+
+  switch (diagramType) {
+    case 'plantuml':
+      return renderPlantUMLSvg(code);
+    default:
+      throw new Error(`SVG rendering is not supported for diagram type: ${diagramType}`);
   }
 }
 

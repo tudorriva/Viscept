@@ -20,7 +20,7 @@
 // ─── Diagram Languages & Sub-types ─────────────────────────────────────────────
 
 /** Top-level diagram languages the app supports. */
-export type DiagramLanguage = 'mermaid' | 'dbml' | 'graphviz';
+export type DiagramLanguage = 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
 
 /** Mermaid sub-types that influence parsing / serialisation / rendering. */
 export type MermaidSubType =

@@ -7,7 +7,7 @@ import { saveProject, ProjectData } from '../utils/storage';
 
 interface ControlPanelProps {
   code: string;
-  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  diagramType: 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
   prompt: string;
   previewRef: React.RefObject<HTMLDivElement>;
   onLoadProject: (project: ProjectData) => void;

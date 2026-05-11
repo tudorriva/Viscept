@@ -96,7 +96,7 @@ export async function runPipeline(
   let bestValidation: ValidationResult | null = null;
   let currentPrompt = prompt;
   let attempts = 0;
-  let currentBaseCode = baseCode;
+  const currentBaseCode = baseCode;
 
   const maxAttempts = enableValidation ? 1 + maxRetries : 1;
 

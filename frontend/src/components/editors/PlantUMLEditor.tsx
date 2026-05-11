@@ -76,7 +76,7 @@ export const PlantUMLEditor: React.FC<PlantUMLEditorProps> = ({
       <div className="flex-1 overflow-hidden">
         <Editor
           height="100%"
-          language="plaintext"
+          language="plantuml"
           value={code}
           onChange={(value) => onChange(value || '')}
           onMount={handleEditorMount}

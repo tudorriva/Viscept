@@ -10,6 +10,7 @@ import {
   formatCode,
   getDemoData,
   validateDiagram,
+  renderDiagram,
   getModels,
   handleChatMessage,
   handleClassifyDiagramType,
@@ -114,6 +115,28 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await validateDiagram(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/render
+ * Render diagram code for frontend preview/export.
+ *
+ * Request body:
+ *   {
+ *     code: string,
+ *     diagramType: "plantuml",
+ *     format?: "svg"
+ *   }
+ */
+router.post(
+  '/render',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await renderDiagram(req, res);
     } catch (error) {
       next(error);
     }

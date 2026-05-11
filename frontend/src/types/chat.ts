@@ -6,6 +6,14 @@ export type DiagramType = 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
 
 export type MessageRole = 'user' | 'assistant';
 
+export interface ChatValidationResult {
+  status: 'PASS' | 'FAIL' | 'ERROR';
+  reason: string;
+  confidence: number;
+  suggestions: string[];
+  timestamp: string;
+}
+
 /** A single message in a chat conversation. */
 export interface ChatMessage {
   id: string;
@@ -13,6 +21,7 @@ export interface ChatMessage {
   content: string;
   /** Diagram code attached to an assistant message (if any). */
   diagramCode?: string;
+  validation?: ChatValidationResult | null;
   timestamp: string;
 }
 
@@ -27,6 +36,8 @@ export interface ChatSession {
   messages: ChatMessage[];
   /** Latest diagram code (accumulated through modifications). */
   currentDiagramCode: string;
+  /** Latest visual validation result for the current diagram. */
+  currentValidation: ChatValidationResult | null;
 }
 
 /** Metadata stored in localStorage for quick listing without loading full history. */
@@ -56,15 +67,22 @@ export function createChatSession(title?: string): ChatSession {
     diagramType: null,
     messages: [],
     currentDiagramCode: '',
+    currentValidation: null,
   };
 }
 
-export function createChatMessage(role: MessageRole, content: string, diagramCode?: string): ChatMessage {
+export function createChatMessage(
+  role: MessageRole,
+  content: string,
+  diagramCode?: string,
+  validation?: ChatValidationResult | null,
+): ChatMessage {
   return {
     id: uid(),
     role,
     content,
     diagramCode,
+    validation,
     timestamp: new Date().toISOString(),
   };
 }

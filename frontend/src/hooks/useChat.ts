@@ -10,6 +10,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ChatSession, ChatSessionMeta, DiagramType } from '../types/chat';
+import type { ValidationResult } from '../utils/api';
 import { createChatSession, createChatMessage } from '../types/chat';
 import {
   listChatSessions,
@@ -48,11 +49,15 @@ export interface UseChatReturn {
   regenerateLastResponse: () => Promise<void>;
   /** Update diagram code from visual editor (does NOT trigger LLM). */
   updateDiagramCode: (code: string) => Promise<void>;
+  /** Store latest visual validation result for the current diagram. */
+  updateValidationResult: (validation: ValidationResult | null) => Promise<void>;
 
   /** Current diagram code from the active chat. */
   diagramCode: string;
   /** Current diagram type (null until first generation). */
   diagramType: DiagramType | null;
+  /** Latest visual validation result for the current diagram. */
+  validationResult: ValidationResult | null;
 }
 
 export function useChat(): UseChatReturn {
@@ -218,12 +223,15 @@ export function useChat(): UseChatReturn {
           'assistant',
           response.message || 'Diagram updated.',
           response.code,
+          response.validation ?? null,
         );
 
         session = {
           ...session,
           messages: [...session.messages, assistantMsg],
           currentDiagramCode: response.code,
+          diagramType: (response.language as DiagramType) || diagramType,
+          currentValidation: response.validation ?? null,
           updatedAt: new Date().toISOString(),
         };
 
@@ -267,6 +275,7 @@ export function useChat(): UseChatReturn {
       ...session,
       messages,
       currentDiagramCode: prevCode,
+      currentValidation: prevAssistant?.validation ?? null,
     };
     setActiveChat(trimmedSession);
     activeChatRef.current = trimmedSession;
@@ -286,9 +295,28 @@ export function useChat(): UseChatReturn {
       const updated: ChatSession = {
         ...session,
         currentDiagramCode: code,
+        currentValidation: null,
         updatedAt: new Date().toISOString(),
       };
       setActiveChat(updated);
+      activeChatRef.current = updated;
+      await saveChatSession(updated);
+    },
+    [],
+  );
+
+  const updateValidationResult = useCallback(
+    async (validation: ValidationResult | null) => {
+      const session = activeChatRef.current;
+      if (!session) return;
+
+      const updated: ChatSession = {
+        ...session,
+        currentValidation: validation,
+        updatedAt: new Date().toISOString(),
+      };
+      setActiveChat(updated);
+      activeChatRef.current = updated;
       await saveChatSession(updated);
     },
     [],
@@ -306,7 +334,9 @@ export function useChat(): UseChatReturn {
     sendMessage,
     regenerateLastResponse,
     updateDiagramCode,
+    updateValidationResult,
     diagramCode: activeChat?.currentDiagramCode || '',
     diagramType: activeChat?.diagramType || null,
+    validationResult: (activeChat?.currentValidation ?? null) as ValidationResult | null,
   };
 }

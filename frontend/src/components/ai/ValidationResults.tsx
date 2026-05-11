@@ -26,7 +26,7 @@ export const ValidationResults: React.FC<ValidationResultsProps> = ({
 }) => {
   const [open, setOpen] = React.useState(false);
 
-  const status = validation?.status ?? 'PENDING';
+  const status = isValidating ? 'RUNNING' : validation?.status ?? 'PENDING';
   const confidence = validation?.confidence;
 
   return (
@@ -46,7 +46,7 @@ export const ValidationResults: React.FC<ValidationResultsProps> = ({
               disabled={!validation}
             >
               <ValidationBadge
-                status={isValidating ? 'PENDING' : status as any}
+                status={status as any}
                 confidence={confidence}
               />
               {validation && (

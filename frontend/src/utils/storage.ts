@@ -8,7 +8,7 @@ export interface ProjectData {
   name?: string;
   code: string;
   language?: string;
-  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  diagramType: 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
   prompt: string;
   timestamp?: string;
   createdAt?: string;

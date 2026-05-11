@@ -5,7 +5,7 @@ import { theme } from '../theme';
 interface Project {
   id: string;
   name: string;
-  diagramType: 'mermaid' | 'dbml' | 'graphviz';
+  diagramType: 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
   code: string;
   prompt: string;
   createdAt: string;

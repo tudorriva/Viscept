@@ -5,6 +5,8 @@
 import 'dotenv/config'; // Ensure env vars are loaded before module-level constants
 import axios from 'axios';
 
+export type DiagramLanguage = 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
+
 export interface OllamaResponse {
   code: string;
   language: string;
@@ -21,8 +23,8 @@ const OLLAMA_BASE_URL = normalizeOllamaBaseUrl(process.env.OLLAMA_URL);
 const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 // Default generative model options: 'viscept', 'qwen2.5-coder:7b', 'mistral', 'neural-chat', 'codellama', etc.
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'viscept';
-// Default VLM (vision) model options: 'qwen2.5vl:3b', 'llava', 'bakllava', etc.
-const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b';
+// Default VLM (vision) model options: 'granite3.2-vision:2b', 'qwen2.5vl:3b', 'llava', 'bakllava', etc.
+const OLLAMA_VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'granite3.2-vision:2b';
 const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || '300000', 10);
 const OLLAMA_MODIFY_TIMEOUT = parseInt(process.env.OLLAMA_MODIFY_TIMEOUT || '600000', 10); // 10 min for modifications
 const STRICT_MODE = process.env.STRICT_MODE === 'true';
@@ -47,7 +49,15 @@ RULES:
 - Never mix flowchart arrows (-->) with erDiagram syntax.
 - LAYOUT: For complex diagrams, use subgraph blocks. Set direction with TB or LR.
 - Output code only.`,
-      plantuml: `You are a code generator. Output ONLY valid PlantUML code. No explanations, no prose, no markdown fences. Start with @startuml and end with @enduml. Every line must be valid PlantUML syntax. Output code only.`,
+      plantuml: `You are a PlantUML diagram code generator. Output ONLY valid PlantUML code.
+RULES:
+- No explanations, no prose, no markdown fences, no comments.
+- Start with @startuml and end with @enduml.
+- Use valid PlantUML syntax only.
+- For sequence diagrams, declare actors/participants explicitly using actor, participant, database, queue, or collections as appropriate.
+- For branching flows in sequence diagrams, use alt / else / end blocks.
+- Preserve requested participant names exactly when possible, quoting names that contain spaces or punctuation.
+- Output code only.`,
       dbml: `You are a code generator. Output ONLY valid DBML code for database schemas. No explanations, no prose, no markdown fences. Start with Table definitions. Every line must be valid DBML syntax. Output code only.`,
       graphviz: `You are a code generator. Output ONLY valid Graphviz DOT code. No explanations, no prose, no markdown fences. Start with 'digraph' or 'graph'. Every line must be valid DOT syntax. Output code only.`,
   };
@@ -111,7 +121,7 @@ function extractCodeFromResponse(response: string, diagramType: string): string 
       if (!t) continue;
 
       // Skip code patterns
-      const isCodeLine = /^\s*(classDiagram|graph|flowchart|sequenceDiagram|stateDiagram|erDiagram|\w+\s*[<\-:|*_{}]|[\w<>|:*{}\[\]"-]+\s*$|\s*\w+\s*\|\|)/.test(t);
+      const isCodeLine = /^\s*(classDiagram|graph|flowchart|sequenceDiagram|stateDiagram|erDiagram|\w+\s*[<\-:|*_{}]|[\w<>|:*{}[\]"-]+\s*$|\s*\w+\s*\|\|)/.test(t);
       
       // Detect prose: 3+ words, looks like English sentence
       const wordCount = t.split(/\s+/).length;
@@ -260,6 +270,10 @@ export async function generateWithOllama(
   prompt: string,
   diagramType: string
 ): Promise<OllamaResponse> {
+  if (process.env.NODE_ENV === 'test') {
+    return getFallbackTemplate(diagramType);
+  }
+
   const systemPrompt = buildSystemPrompt(diagramType);
   const userMessage = `Generate a ${diagramType} diagram for: ${prompt}`;
 
@@ -550,21 +564,50 @@ export async function modifyDiagramWithOllama(
   }
 }
 
+export function detectExplicitDiagramLanguage(prompt: string): DiagramLanguage | null {
+  const text = prompt.toLowerCase();
+
+  if (/(?:^|[^a-z0-9])@startuml(?:[^a-z0-9]|$)|(?:^|[^a-z0-9])@enduml(?:[^a-z0-9]|$)|\bplant\s*uml\b|\bpuml\b|\bsequence\s+diagram\s+in\s+plantuml\b/.test(text)) {
+    return 'plantuml';
+  }
+
+  if (/\bmermaid\b/.test(text)) {
+    return 'mermaid';
+  }
+
+  if (/\bgraphviz(?:\s+dot)?\b|\bdot\s+(?:diagram|graph|language)\b|\bdiagram\s+in\s+dot\b/.test(text)) {
+    return 'graphviz';
+  }
+
+  if (/\bdbml\b/.test(text)) {
+    return 'dbml';
+  }
+
+  return null;
+}
+
 /**
  * Classify the best diagram DSL type for a user prompt.
- * Returns one of: mermaid | dbml | graphviz
+ * Returns one of: mermaid | plantuml | dbml | graphviz
  */
 export async function classifyDiagramTypeWithOllama(
   prompt: string,
 ): Promise<string> {
+  const explicitLanguage = detectExplicitDiagramLanguage(prompt);
+  if (explicitLanguage) {
+    console.log(`[Classifier] Explicit language detected: ${explicitLanguage}`);
+    return explicitLanguage;
+  }
+
   const systemPrompt = `You are a diagram type classifier. Based on the user's description, choose the most appropriate diagram DSL.
 
 Available types:
 - dbml: for database schemas, entity-relationship diagrams, data models, tables with columns and foreign keys
 - mermaid: for flowcharts, sequence diagrams, class diagrams, state machines, architecture overviews, process flows
+- plantuml: for UML diagrams when PlantUML syntax is a better fit, including UML class, sequence, state, component, deployment, and use case diagrams
 - graphviz: for complex graph relationships, network topologies, dependency trees, hierarchical structures with many interconnections
 
-Respond with ONLY a JSON object: {"diagramType": "mermaid"} or {"diagramType": "dbml"} or {"diagramType": "graphviz"}
+Respond with ONLY a JSON object: {"diagramType": "mermaid"} or {"diagramType": "plantuml"} or {"diagramType": "dbml"} or {"diagramType": "graphviz"}
 No explanations. JSON only.`;
 
   try {
@@ -587,12 +630,12 @@ No explanations. JSON only.`;
     );
 
     const raw = (response.data.response || '').trim();
-    let cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+    const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
 
     const parsed = JSON.parse(cleaned);
     const type = parsed.diagramType?.toLowerCase();
 
-    if (['mermaid', 'dbml', 'graphviz'].includes(type)) {
+    if (['mermaid', 'plantuml', 'dbml', 'graphviz'].includes(type)) {
       console.log(`[Ollama] Classified as: ${type}`);
       return type;
     }

@@ -25,7 +25,7 @@ export function formatCode(code: string, language: string): string {
  * Format Mermaid code - normalize indentation and line breaks.
  */
 function formatMermaid(code: string): string {
-  let lines = code.split('\n').map((line) => line.trim()).filter((line) => line);
+  const lines = code.split('\n').map((line) => line.trim()).filter((line) => line);
 
   // Ensure proper graph declaration
   if (lines[0] && !lines[0].match(/^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram)/)) {

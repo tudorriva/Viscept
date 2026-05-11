@@ -14,7 +14,7 @@ export interface Settings {
   minimap: boolean;
   notifications: boolean;
   exportQuality: 'low' | 'medium' | 'high';
-  defaultDiagramType: 'mermaid' | 'dbml' | 'graphviz';
+  defaultDiagramType: 'mermaid' | 'dbml' | 'graphviz' | 'plantuml';
   /** Enable automatic visual validation on generation */
   autoValidation: boolean;
   /** Maximum self-correction retries when validation is enabled */
@@ -23,7 +23,7 @@ export interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   model: 'viscept',
-  visionModel: 'qwen2.5vl:3b',
+  visionModel: 'granite3.2-vision:2b',
   temperature: 0.3,
   maxTokens: 2048,
   fontSize: 13,

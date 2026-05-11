@@ -5,7 +5,7 @@
 ### Backend Configuration
 ✅ Updated `.env` file in `/backend`:
 - `OLLAMA_MODEL=viscept` (was `qwen2.5-coder:7b-instruct-q4_K_M`)
-- `OLLAMA_VLM_MODEL=qwen2.5vl:3b` (was `granite3.2-vision:2b`)
+- `OLLAMA_VLM_MODEL=granite3.2-vision:2b` (was `qwen2.5vl:3b`)
 
 ✅ Updated `.env.example` with Viscept as recommended default
 

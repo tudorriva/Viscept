@@ -220,6 +220,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                   }}
                 >
                   <option value="mermaid">Mermaid</option>
+                  <option value="plantuml">PlantUML</option>
                   <option value="dbml">DBML</option>
                   <option value="graphviz">Graphviz</option>
                 </select>

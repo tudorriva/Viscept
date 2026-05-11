@@ -63,6 +63,19 @@ export interface ValidateRequest {
   originalPrompt?: string;
 }
 
+export interface RenderRequest {
+  code: string;
+  diagramType: 'plantuml';
+  format?: 'svg';
+}
+
+export interface RenderResponse {
+  svg: string;
+  language: string;
+  format: 'svg';
+  timestamp: string;
+}
+
 export interface FormatRequest {
   code: string;
   language: string;
@@ -154,6 +167,11 @@ export async function correctDiagram(req: CorrectRequest): Promise<GenerateRespo
  */
 export async function validateDiagram(req: ValidateRequest): Promise<ValidationResult> {
   const response = await client.post<ValidationResult>('/api/validate', req);
+  return response.data;
+}
+
+export async function renderDiagram(req: RenderRequest): Promise<RenderResponse> {
+  const response = await client.post<RenderResponse>('/api/render', req);
   return response.data;
 }
 

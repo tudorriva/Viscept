@@ -18,7 +18,7 @@ import { useChat } from './hooks/useChat';
 import { useSettings } from './hooks/useSettings';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useUIStore } from './store/uiStore';
-import { formatCode as formatCodeAPI, fetchDemo, fetchHealth, validateDiagram, correctDiagram, ValidationResult, type CorrectRequest, type GenerateResponse } from './utils/api';
+import { formatCode as formatCodeAPI, fetchDemo, fetchHealth, validateDiagram, correctDiagram } from './utils/api';
 import { exportAsPNG, exportAsSVG, exportAsPDF, type ExportOptions } from './utils/exporters';
 import type { DiagramExample } from './utils/examples';
 import './index.css';
@@ -43,7 +43,6 @@ export const App: React.FC = () => {
     chat.chatList.length === 0,
   );
   const [localError, setLocalError] = useState<string | null>(null);
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isAutoCorrecting, setIsAutoCorrecting] = useState(false);
 
@@ -101,7 +100,6 @@ export const App: React.FC = () => {
   const handleValidate = useCallback(async () => {
     if (!code.trim()) return;
     setIsValidating(true);
-    setValidationResult(null);
     try {
       const firstUser = messages.find((m) => m.role === 'user');
       const result = await validateDiagram({
@@ -109,15 +107,16 @@ export const App: React.FC = () => {
         diagramType,
         originalPrompt: firstUser?.content ?? 'User diagram',
       });
-      setValidationResult(result);
+      chat.updateValidationResult(result);
     } catch {
       setLocalError('Visual validation failed');
     } finally {
       setIsValidating(false);
     }
-  }, [code, diagramType, messages]);
+  }, [code, diagramType, messages, chat]);
 
   const handleFix = useCallback(async () => {
+    const validationResult = chat.validationResult;
     if (!code.trim() || !validationResult || chat.isLoading) return;
 
     const fixMessage = `Visual inspection found issues: ${validationResult.reason}. ${
@@ -127,8 +126,8 @@ export const App: React.FC = () => {
     }. Please fix the diagram.`;
 
     chat.sendMessage(fixMessage);
-    setValidationResult(null);
-  }, [code, validationResult, chat]);
+    chat.updateValidationResult(null);
+  }, [code, chat]);
 
   const handleSelectExample = useCallback(
     (example: DiagramExample) => { chat.updateDiagramCode(example.code); },
@@ -222,8 +221,8 @@ export const App: React.FC = () => {
         onFormatCode={handleFormatCode}
         onRenderError={handleRenderError}
         /* validation */
-        validation={validationResult}
-        isValidating={isValidating}
+        validation={chat.validationResult}
+        isValidating={isValidating || chat.isLoading}
         onValidate={handleValidate}
         onFix={handleFix}
         /* export */
