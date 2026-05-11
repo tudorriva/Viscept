@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  X, Image, FileCode, FileText, Copy, Download, CheckCircle2,
+  X, Image, FileCode, FileText, Copy, Download, CheckCircle2, Loader,
 } from 'lucide-react';
 import { theme } from '../../theme';
 import { useUIStore } from '../../store/uiStore';
