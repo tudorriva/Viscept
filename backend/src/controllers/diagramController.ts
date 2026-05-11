@@ -6,7 +6,7 @@ import { Request, Response } from 'express';
 import { generateWithOllama, correctWithOllama, modifyDiagramWithOllama, classifyDiagramTypeWithOllama, getModelConfig, listOllamaModels, checkOllamaHealth } from '../services/ollamaService.js';
 import { formatCode as formatCodeService } from '../services/formatterService.js';
 import { getDemoData as getDemoDataService } from '../services/demoService.js';
-import { runPipeline, validateExistingDiagram } from '../services/pipelineService.js';
+import { runPipeline, validateExistingDiagram, PipelineResult } from '../services/pipelineService.js';
 import { checkVLMHealth } from '../services/visualValidationService.js';
 import { checkRenderingCapabilities } from '../services/renderingService.js';
 
@@ -317,43 +317,51 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
   try {
     let code: string;
     let assistantMessage: string;
+    let result: PipelineResult;
+
+    if (enableValidation) {
+      // ── Use Self-Correction Pipeline (v2.0) ──────────────────────────────
+      console.log(`[Controller] Chat ${chatId}: processing with pipeline (isFirst: ${isFirstMessage})`);
+      
+      result = await runPipeline(message, diagramType, {
+        enableValidation: true,
+        maxRetries: maxRetries ?? 2,
+        baseCode: isFirstMessage ? undefined : currentDiagramCode,
+      });
+      
+      code = result.code;
+      assistantMessage = isFirstMessage 
+        ? 'Here is your diagram. Feel free to ask me to modify it.'
+        : 'I\'ve updated the diagram based on your request.';
+
+      res.json({
+        code,
+        message: assistantMessage,
+        language: diagramType,
+        timestamp: new Date().toISOString(),
+        validation: result.validation,
+        attempts: result.attempts,
+      });
+      return;
+    }
 
     if (isFirstMessage || !currentDiagramCode) {
-      // ── First message: generate from scratch ─────────────────────────────
+      // ── Standard Generation (no pipeline) ────────────────────────────────
       console.log(`[Controller] Chat ${chatId}: first message, generating ${diagramType} diagram`);
 
-      if (enableValidation) {
-        const result = await runPipeline(message, diagramType, {
-          enableValidation: true,
-          maxRetries: maxRetries ?? 2,
-        });
-        code = result.code;
-        assistantMessage = 'Here is your diagram. Feel free to ask me to modify it.';
-
-        res.json({
-          code,
-          message: assistantMessage,
-          language: diagramType,
-          timestamp: new Date().toISOString(),
-          validation: result.validation,
-          attempts: result.attempts,
-        });
-        return;
-      }
-
-      const result = await generateWithOllama(message, diagramType);
-      code = result.code;
+      const genResult = await generateWithOllama(message, diagramType);
+      code = genResult.code;
       assistantMessage = 'Here is your diagram. You can ask me to add, remove, or change any part of it.';
     } else {
-      // ── Follow-up message: modify existing diagram ───────────────────────
+      // ── Standard Modification (no pipeline) ──────────────────────────────
       console.log(`[Controller] Chat ${chatId}: modifying ${diagramType} diagram`);
 
-      const result = await modifyDiagramWithOllama(
+      const modResult = await modifyDiagramWithOllama(
         currentDiagramCode,
         message,
         diagramType,
       );
-      code = result.code;
+      code = modResult.code;
       assistantMessage = 'I\'ve updated the diagram based on your request.';
     }
 

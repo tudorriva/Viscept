@@ -92,13 +92,9 @@ async function renderMermaid(code: string): Promise<RenderResult> {
 
     throw new Error('mmdc did not produce output file');
   } catch (error) {
-    console.warn(
-      '[Renderer] mmdc rendering failed, using fallback:',
-      error instanceof Error ? error.message : String(error)
-    );
-
-    // Fallback: create a simple text representation as an image placeholder
-    return createPlaceholderImage(code, 'mermaid');
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Renderer] Mermaid rendering failed:', msg);
+    throw new Error(msg);
   } finally {
     cleanupTemp(inputPath);
   }
@@ -137,9 +133,10 @@ async function renderPlantUML(code: string): Promise<RenderResult> {
     }
 
     throw new Error('plantuml.jar did not produce output');
-  } catch {
-    // Fallback: create placeholder
-    return createPlaceholderImage(code, 'plantuml');
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Renderer] PlantUML rendering failed:', msg);
+    throw new Error(msg);
   } finally {
     cleanupTemp(inputPath);
     cleanupTemp(outputPath);
@@ -175,8 +172,10 @@ async function renderGraphviz(code: string): Promise<RenderResult> {
     }
 
     throw new Error('dot did not produce output');
-  } catch {
-    return createPlaceholderImage(code, 'graphviz');
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Renderer] Graphviz rendering failed:', msg);
+    throw new Error(msg);
   } finally {
     cleanupTemp(inputPath);
     cleanupTemp(outputPath);

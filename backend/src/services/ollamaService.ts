@@ -42,10 +42,10 @@ RULES:
 - Node IDs must be single camelCase words with NO spaces (e.g. woodFactory, userLogin).
 - Use square brackets for labels: nodeId["Human Readable Label"]
 - For flowcharts use: A["Label"] --> B["Label"] or A -->|"edge label"| B
+- STYLING: Use "style nodeId fill:#hex,stroke:#hex,stroke-width:2px". ALWAYS provide a hex color or named color after "fill:". NEVER leave a colon at the end of a line.
 - For erDiagram use: TableA ||--o{ TableB : "relationship"
 - Never mix flowchart arrows (-->) with erDiagram syntax.
-- LAYOUT: For complex diagrams with many nodes, use subgraph blocks to group related services together. Set the direction with TB (top-to-bottom) or LR (left-to-right). Keep the layout clean and readable.
-- READABILITY: Prefer short, clear labels. Keep edge labels concise (1-3 words). Avoid crossing arrows where possible.
+- LAYOUT: For complex diagrams, use subgraph blocks. Set direction with TB or LR.
 - Output code only.`,
       plantuml: `You are a code generator. Output ONLY valid PlantUML code. No explanations, no prose, no markdown fences. Start with @startuml and end with @enduml. Every line must be valid PlantUML syntax. Output code only.`,
       dbml: `You are a code generator. Output ONLY valid DBML code for database schemas. No explanations, no prose, no markdown fences. Start with Table definitions. Every line must be valid DBML syntax. Output code only.`,
@@ -189,6 +189,21 @@ function extractCodeFromResponse(response: string, diagramType: string): string 
         // Don't strip hex colours
         return /^\s*#[0-9a-fA-F]{3,8}$/.test(m.trim()) ? m : '';
       });
+
+      // --- Style declaration fixes ---
+      // Fix "style node fill:" (missing color) or "style node fill:#"
+      if (line.match(/^\s*style\s+\w+\s+/i)) {
+        // Ensure every key has a value. If not, provide a default or strip it.
+        line = line.replace(/(\w+):\s*(?=\s|,|$)/g, '$1:#ccc');
+        // Fix trailing colon at end of line
+        line = line.replace(/:\s*$/g, ':#ccc');
+      }
+
+      // --- Flowchart: fix node labels with special characters ---
+      if (isFlowchart && line.includes('|') && !line.includes('["') && !line.includes('erDiagram')) {
+        // If it looks like a node with a label but missing quotes: node|Label| -> node["Label"]
+        line = line.replace(/(\w+)\|([^|]+)\|/g, '$1["$2"]');
+      }
 
       // --- Class diagram block tracking ---
       if (/^\s*(classDiagram|abstract\s+class|class)\b/i.test(trimmed)) {

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   X, Image, FileCode, FileText, Copy, Download, CheckCircle2,
 } from 'lucide-react';
-import { theme } from '../theme';
-import { AnimatedButton } from '../ui/AnimatedButton';
+import { theme } from '../../theme';
 import { useUIStore } from '../../store/uiStore';
 import type { ExportOptions, ExportQuality } from '../../utils/exporters';
 
@@ -97,7 +96,7 @@ type ExportId = typeof FORMAT_OPTIONS[number]['id'];
 type ExportStyleId = typeof STYLE_OPTIONS[number]['id'];
 
 /**
- * ExportPanel — Radix Dialog overlay with 2×2 grid of export options.
+ * ExportPanel — Radix Dialog overlay with styling matched to SettingsPanel.
  */
 export const ExportPanel: React.FC<ExportPanelProps> = ({
   onExportPNG, onExportSVG, onExportPDF, onCopyCode, hasContent,
@@ -140,7 +139,12 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
         if (id === 'code') onCopyCode();
       }
       setDone(true);
-      setTimeout(() => setDone(false), 2000);
+      setTimeout(() => {
+        setDone(false);
+        setExportPanelOpen(false);
+      }, 1500);
+    } catch (err) {
+      console.error('Export failed:', err);
     } finally {
       setLoading(false);
     }
@@ -148,232 +152,265 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
 
   return (
     <Dialog.Root open={open} onOpenChange={setExportPanelOpen}>
-      <Dialog.Portal>
-        {/* Backdrop */}
-        <Dialog.Overlay asChild>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
-            onClick={() => setExportPanelOpen(false)}
-          />
-        </Dialog.Overlay>
+      <AnimatePresence>
+        {open && (
+          <Dialog.Portal forceMount>
+            {/* Backdrop */}
+            <Dialog.Overlay asChild>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[200] backdrop-blur-sm"
+                style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}
+              />
+            </Dialog.Overlay>
 
-        {/* Content */}
-        <Dialog.Content asChild>
-          <motion.div
-            initial={{ scale: 0.92, opacity: 0, y: 16 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.92, opacity: 0, y: 16 }}
-            transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-            className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl rounded-2xl outline-none"
-            style={{
-              backgroundColor: theme.colors.bg.secondary,
-              border: `1px solid ${theme.colors.border.medium}`,
-              boxShadow: '0 32px 64px rgba(0,0,0,0.6)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div
-              className="flex items-center justify-between px-8 py-6 border-b"
-              style={{ borderColor: theme.colors.border.medium }}
-            >
-              <div>
-                <Dialog.Title
-                  className="text-2xl font-bold"
-                  style={{ color: theme.colors.text.primary }}
-                >
-                  Export Diagram
-                </Dialog.Title>
-                <Dialog.Description
-                  className="text-sm mt-1"
-                  style={{ color: theme.colors.text.secondary }}
-                >
-                  Choose formats, styles, and quality for your export.
-                </Dialog.Description>
-              </div>
-              <Dialog.Close asChild>
-                <button
-                  onClick={() => setExportPanelOpen(false)}
-                  className="p-2 rounded-lg transition-all"
+            {/* Content Container (Centering wrapper) */}
+            <div className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none">
+              <Dialog.Content asChild>
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl overflow-hidden outline-none shadow-2xl pointer-events-auto"
                   style={{
-                    backgroundColor: theme.colors.bg.tertiary,
-                    color: theme.colors.text.secondary,
+                    backgroundColor: theme.colors.bg.secondary,
+                    border: `1px solid ${theme.colors.border.medium}`,
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
                   }}
-                  title="Close export"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <X size={20} />
-                </button>
-              </Dialog.Close>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-              {/* Formats */}
-              <div>
-                <label
-                  className="text-sm font-semibold uppercase tracking-widest block mb-3"
-                  style={{ color: theme.colors.text.secondary }}
-                >
-                  Export Format
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {FORMAT_OPTIONS.map((opt) => {
-                    const Icon = opt.icon;
-                    const isSelected = selectedFormats.includes(opt.id);
-                    return (
-                      <motion.button
-                        key={opt.id}
-                        whileHover={{ scale: hasContent ? 1.02 : 1 }}
-                        whileTap={{ scale: hasContent ? 0.98 : 1 }}
-                        onClick={() => toggleFormat(opt.id)}
-                        disabled={!hasContent || loading}
-                        className="text-left p-4 rounded-xl flex items-start gap-3 transition-all border"
-                        style={{
-                          backgroundColor: isSelected ? theme.colors.bg.tertiary : theme.colors.bg.secondary,
-                          borderColor: isSelected ? theme.colors.accent.primary : theme.colors.border.medium,
-                          cursor: hasContent ? 'pointer' : 'not-allowed',
-                          opacity: !hasContent ? 0.5 : 1,
-                        }}
+                  {/* Header */}
+                  <div
+                    className="flex items-center justify-between px-8 py-6 border-b shrink-0"
+                    style={{ borderColor: theme.colors.border.medium, backgroundColor: theme.colors.bg.secondary }}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div 
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg"
+                        style={{ background: `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.tertiary})` }}
                       >
-                        <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ background: opt.gradient }}>
-                          {isSelected ? <CheckCircle2 size={18} /> : <Icon size={18} />}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold" style={{ color: theme.colors.text.primary }}>
-                            {opt.label}
-                          </p>
-                          <p className="text-xs mt-0.5" style={{ color: theme.colors.text.secondary }}>
-                            {opt.description}
-                          </p>
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Styles */}
-              <div>
-                <label
-                  className="text-sm font-semibold uppercase tracking-widest block mb-3"
-                  style={{ color: theme.colors.text.secondary }}
-                >
-                  Export Style
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {STYLE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      onClick={() => setSelectedStyle(opt.id)}
-                      disabled={!hasContent || loading}
-                      className="text-left p-4 rounded-xl transition-all border"
-                      style={{
-                        backgroundColor: opt.id === selectedStyle ? theme.colors.bg.tertiary : theme.colors.bg.secondary,
-                        borderColor: opt.id === selectedStyle ? theme.colors.accent.primary : theme.colors.border.medium,
-                        cursor: hasContent ? 'pointer' : 'not-allowed',
-                        opacity: !hasContent ? 0.5 : 1,
-                      }}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className="w-4 h-4 rounded border"
-                          style={{
-                            backgroundColor: opt.background,
-                            borderColor: theme.colors.border.medium,
-                          }}
-                        />
-                        <span className="text-sm font-semibold" style={{ color: theme.colors.text.primary }}>
-                          {opt.label}
-                        </span>
+                        <Download size={24} />
                       </div>
-                      <p className="text-xs" style={{ color: theme.colors.text.secondary }}>
-                        {opt.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      <div>
+                        <Dialog.Title
+                          className="text-2xl font-bold tracking-tight"
+                          style={{ color: theme.colors.text.primary }}
+                        >
+                          Export Diagram
+                        </Dialog.Title>
+                        <Dialog.Description
+                          className="text-sm font-medium opacity-70"
+                          style={{ color: theme.colors.text.secondary }}
+                        >
+                          Professional formats & visual styles
+                        </Dialog.Description>
+                      </div>
+                    </div>
+                    <Dialog.Close asChild>
+                      <button
+                        className="p-2.5 rounded-xl transition-all hover:bg-white/5 active:scale-95"
+                        style={{
+                          backgroundColor: 'transparent',
+                          color: theme.colors.text.secondary,
+                        }}
+                        title="Close"
+                      >
+                        <X size={20} />
+                      </button>
+                    </Dialog.Close>
+                  </div>
 
-              {/* Quality */}
-              <div>
-                <label
-                  className="text-sm font-semibold uppercase tracking-widest block mb-3"
-                  style={{ color: theme.colors.text.secondary }}
-                >
-                  Quality
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {QUALITY_OPTIONS.map((opt) => (
+                  {/* Scrollable Content */}
+                  <div className="flex-1 overflow-y-auto px-8 py-8 space-y-10 custom-scrollbar" style={{ backgroundColor: theme.colors.bg.secondary }}>
+                    {/* Formats Section */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-5">
+                        <FileCode size={16} style={{ color: theme.colors.accent.primary }} />
+                        <label
+                          className="text-[11px] font-bold uppercase tracking-[0.15em]"
+                          style={{ color: theme.colors.text.muted }}
+                        >
+                          Export Formats
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        {FORMAT_OPTIONS.map((opt) => {
+                          const Icon = opt.icon;
+                          const isSelected = selectedFormats.includes(opt.id);
+                          return (
+                            <button
+                              key={opt.id}
+                              onClick={() => toggleFormat(opt.id)}
+                              disabled={!hasContent || loading}
+                              className="text-left p-5 rounded-2xl flex items-start gap-4 transition-all border group relative overflow-hidden"
+                              style={{
+                                backgroundColor: isSelected ? 'rgba(106,92,255,0.05)' : 'transparent',
+                                borderColor: isSelected ? theme.colors.accent.primary : theme.colors.border.light,
+                                opacity: !hasContent ? 0.5 : 1,
+                              }}
+                            >
+                              <div
+                                className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-white shadow-md z-10"
+                                style={{ background: opt.gradient }}
+                              >
+                                {isSelected ? <CheckCircle2 size={20} /> : <Icon size={20} />}
+                              </div>
+                              <div className="z-10">
+                                <p className="text-sm font-bold group-hover:text-white transition-colors" style={{ color: theme.colors.text.primary }}>
+                                  {opt.label}
+                                </p>
+                                <p className="text-xs mt-1 leading-snug opacity-60" style={{ color: theme.colors.text.secondary }}>
+                                  {opt.description}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    {/* Style Section */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-5">
+                        <Image size={16} style={{ color: theme.colors.accent.primary }} />
+                        <label
+                          className="text-[11px] font-bold uppercase tracking-[0.15em]"
+                          style={{ color: theme.colors.text.muted }}
+                        >
+                          Visual Presets
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        {STYLE_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => setSelectedStyle(opt.id)}
+                            disabled={!hasContent || loading}
+                            className="text-left p-5 rounded-2xl transition-all border group"
+                            style={{
+                              backgroundColor: opt.id === selectedStyle ? 'rgba(106,92,255,0.05)' : 'transparent',
+                              borderColor: opt.id === selectedStyle ? theme.colors.accent.primary : theme.colors.border.light,
+                              opacity: !hasContent ? 0.5 : 1,
+                            }}
+                          >
+                            <div className="flex items-center gap-3 mb-2">
+                              <div
+                                className="w-5 h-5 rounded-full border-2 border-white/10 shadow-inner"
+                                style={{ backgroundColor: opt.background }}
+                              />
+                              <span className="text-sm font-bold" style={{ color: theme.colors.text.primary }}>
+                                {opt.label}
+                              </span>
+                            </div>
+                            <p className="text-xs opacity-60" style={{ color: theme.colors.text.secondary }}>
+                              {opt.description}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    {/* Quality Selection */}
+                    <section>
+                      <div className="flex items-center gap-2 mb-5">
+                        <FileText size={16} style={{ color: theme.colors.accent.primary }} />
+                        <label
+                          className="text-[11px] font-bold uppercase tracking-[0.15em]"
+                          style={{ color: theme.colors.text.muted }}
+                        >
+                          Resolution Quality
+                        </label>
+                      </div>
+                      <div className="flex p-1.5 rounded-2xl" style={{ backgroundColor: theme.colors.bg.primary, border: `1px solid ${theme.colors.border.light}` }}>
+                        {QUALITY_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => setQuality(opt.id)}
+                            disabled={!hasContent || loading}
+                            className="flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all relative"
+                            style={{
+                              backgroundColor: opt.id === quality ? theme.colors.bg.secondary : 'transparent',
+                              color: opt.id === quality ? theme.colors.accent.primary : theme.colors.text.muted,
+                              boxShadow: opt.id === quality ? theme.shadows.sm : 'none',
+                              border: opt.id === quality ? `1px solid ${theme.colors.border.light}` : '1px solid transparent',
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+
+                  {/* Footer */}
+                  <div
+                    className="px-8 py-8 border-t flex items-center gap-4 shrink-0"
+                    style={{ borderColor: theme.colors.border.medium, backgroundColor: theme.colors.bg.primary }}
+                  >
                     <button
-                      key={opt.id}
-                      onClick={() => setQuality(opt.id)}
-                      disabled={!hasContent || loading}
-                      className="text-center p-3 rounded-lg transition-all border"
+                      onClick={() => setExportPanelOpen(false)}
+                      className="px-8 py-4 rounded-2xl text-sm font-bold transition-all border hover:bg-white/5 active:scale-95"
                       style={{
-                        backgroundColor: opt.id === quality ? theme.colors.bg.tertiary : theme.colors.bg.secondary,
-                        borderColor: opt.id === quality ? theme.colors.accent.primary : theme.colors.border.medium,
-                        cursor: hasContent ? 'pointer' : 'not-allowed',
-                        opacity: !hasContent ? 0.5 : 1,
+                        backgroundColor: 'transparent',
+                        borderColor: theme.colors.border.light,
+                        color: theme.colors.text.primary,
                       }}
                     >
-                      <p className="text-sm font-semibold" style={{ color: theme.colors.text.primary }}>
-                        {opt.label}
-                      </p>
-                      <p className="text-xs mt-0.5" style={{ color: theme.colors.text.secondary }}>
-                        {opt.hint}
-                      </p>
+                      Cancel
                     </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+                    <button
+                      onClick={handleExportSelected}
+                      disabled={!hasContent || loading || selectedFormats.length === 0}
+                      className="flex-1 py-4 rounded-2xl text-sm font-black transition-all flex items-center justify-center gap-3 shadow-xl hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+                      style={{
+                        background: loading
+                          ? theme.colors.bg.tertiary
+                          : `linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.tertiary})`,
+                        color: '#fff',
+                        boxShadow: loading ? 'none' : `0 8px 24px -6px ${theme.colors.accent.primary}66`,
+                      }}
+                    >
+                      {loading ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                          >
+                            <Loader size={18} />
+                          </motion.div>
+                          Processing Export...
+                        </>
+                      ) : done ? (
+                        <>
+                          <CheckCircle2 size={18} />
+                          Files Ready!
+                        </>
+                      ) : (
+                        <>
+                          <Download size={18} />
+                          Download {selectedFormats.length} {selectedFormats.length === 1 ? 'Format' : 'Formats'}
+                        </>
+                      )}
+                    </button>
+                  </div>
 
-            {/* Footer / Actions */}
-            <div
-              className="flex items-center gap-3 px-8 py-6 border-t"
-              style={{ borderColor: theme.colors.border.medium }}
-            >
-              <button
-                onClick={handleExportSelected}
-                disabled={!hasContent || loading || selectedFormats.length === 0}
-                className="flex-1 rounded-lg px-4 py-3 text-sm font-semibold transition-all"
-                style={{
-                  backgroundColor: theme.colors.accent.primary,
-                  color: 'white',
-                  opacity: !hasContent || selectedFormats.length === 0 ? 0.6 : 1,
-                  cursor: !hasContent || selectedFormats.length === 0 ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {loading ? 'Exporting...' : done ? '✓ Exported' : `Export (${selectedFormats.length})`}
-              </button>
-              <button
-                onClick={() => setSelectedFormats(FORMAT_OPTIONS.map((opt) => opt.id))}
-                disabled={!hasContent || loading}
-                className="px-4 py-3 rounded-lg text-sm font-medium transition-all border"
-                style={{
-                  backgroundColor: theme.colors.bg.tertiary,
-                  borderColor: theme.colors.border.medium,
-                  color: theme.colors.text.secondary,
-                  opacity: !hasContent ? 0.5 : 1,
-                  cursor: !hasContent ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Select All
-              </button>
+                  {!hasContent && (
+                    <div
+                      className="px-8 py-3 text-center text-[10px] font-bold uppercase tracking-widest"
+                      style={{ backgroundColor: `${theme.colors.status.warning}10`, color: theme.colors.status.warning, borderTop: `1px solid ${theme.colors.status.warning}20` }}
+                    >
+                      Canvas is empty. Generate a diagram to enable export.
+                    </div>
+                  )}
+                </motion.div>
+              </Dialog.Content>
             </div>
-
-            {!hasContent && (
-              <div className="px-8 py-4 text-center text-xs" style={{ color: theme.colors.text.secondary }}>
-                Generate a diagram first to enable exports.
-              </div>
-            )}
-          </motion.div>
-        </Dialog.Content>
-      </Dialog.Portal>
+          </Dialog.Portal>
+        )}
+      </AnimatePresence>
     </Dialog.Root>
   );
 };

@@ -22,6 +22,8 @@ import {
 } from '../utils/chatStorage';
 import { sendChatMessage, classifyDiagramType } from '../utils/api';
 
+import { useUIStore } from '../store/uiStore';
+
 export interface UseChatReturn {
   /** Metadata list of all chats (for sidebar). */
   chatList: ChatSessionMeta[];
@@ -58,6 +60,8 @@ export function useChat(): UseChatReturn {
   const [activeChat, setActiveChat] = useState<ChatSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const setGenerationPhase = useUIStore((s) => s.setGenerationPhase);
+  const resetGeneration = useUIStore((s) => s.resetGeneration);
 
   // Ref to avoid stale closures in async callbacks
   const activeChatRef = useRef<ChatSession | null>(null);
@@ -155,6 +159,7 @@ export function useChat(): UseChatReturn {
 
       setIsLoading(true);
       setError(null);
+      setGenerationPhase('classifying');
 
       try {
         // 1. Append user message
@@ -187,18 +192,26 @@ export function useChat(): UseChatReturn {
         await saveChatSession(session);
         refreshList();
 
+        setGenerationPhase('generating');
+
         // 4. Call backend chat endpoint
         const isFirstMessage = session.messages.filter((m) => m.role === 'user').length === 1;
-        // Note: model settings come from localStorage (useSettings hook in App.tsx)
-        // Backend will use environment defaults if not provided
+        
+        // Timeout for "taking longer than usual"
+        const longWaitTimer = setTimeout(() => {
+          setGenerationPhase('fixing', 'Taking longer than usual... double-checking syntax.');
+        }, 15000);
+
         const response = await sendChatMessage({
           chatId: session.id,
           message: content,
           diagramType: diagramType!,
           currentDiagramCode: isFirstMessage ? undefined : session.currentDiagramCode,
           isFirstMessage,
-          // Model settings can be passed here if available from context/props
+          enableValidation: true, // Enable the self-correction pipeline
         });
+
+        clearTimeout(longWaitTimer);
 
         // 5. Append assistant message
         const assistantMsg = createChatMessage(
@@ -217,14 +230,17 @@ export function useChat(): UseChatReturn {
         setActiveChat(session);
         await saveChatSession(session);
         refreshList();
+        setGenerationPhase('done');
+        setTimeout(() => resetGeneration(), 2000);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to send message';
         setError(msg);
+        setGenerationPhase('error', msg);
       } finally {
         setIsLoading(false);
       }
     },
-    [createChat, refreshList],
+    [createChat, refreshList, setGenerationPhase, resetGeneration],
   );
 
   // ── Regenerate last response ────────────────────────────────────────────

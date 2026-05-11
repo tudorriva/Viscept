@@ -117,6 +117,19 @@ export const App: React.FC = () => {
     }
   }, [code, diagramType, messages]);
 
+  const handleFix = useCallback(async () => {
+    if (!code.trim() || !validationResult || chat.isLoading) return;
+
+    const fixMessage = `Visual inspection found issues: ${validationResult.reason}. ${
+      validationResult.suggestions.length > 0
+        ? 'Suggestions: ' + validationResult.suggestions.join(', ')
+        : ''
+    }. Please fix the diagram.`;
+
+    chat.sendMessage(fixMessage);
+    setValidationResult(null);
+  }, [code, validationResult, chat]);
+
   const handleSelectExample = useCallback(
     (example: DiagramExample) => { chat.updateDiagramCode(example.code); },
     [chat],
@@ -212,6 +225,7 @@ export const App: React.FC = () => {
         validation={validationResult}
         isValidating={isValidating}
         onValidate={handleValidate}
+        onFix={handleFix}
         /* export */
         onExportPNG={handleExportPNG}
         onExportSVG={handleExportSVG}

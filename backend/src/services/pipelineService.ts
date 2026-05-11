@@ -12,7 +12,7 @@
  *   This avoids VRAM contention on GPUs with ≤4GB.
  */
 
-import { generateWithOllama, OllamaResponse } from './ollamaService.js';
+import { generateWithOllama, modifyDiagramWithOllama, OllamaResponse } from './ollamaService.js';
 import { renderDiagramToImage, RenderResult } from './renderingService.js';
 import {
   validateDiagramVisually,
@@ -58,6 +58,8 @@ export interface PipelineOptions {
   model?: string;
   /** Custom VLM override */
   vlmModel?: string;
+  /** Existing diagram code (for modifications) */
+  baseCode?: string;
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
@@ -71,7 +73,7 @@ function sleep(ms: number): Promise<void> {
 /**
  * Run the full self-correction pipeline:
  *
- * 1. Generate initial diagram code with the generative model.
+ * 1. Generate/Modify initial diagram code with the generative model.
  * 2. Render the code to a PNG image.
  * 3. Send the image to the VLM for visual inspection.
  * 4. If the VLM reports FAIL, build a correction prompt and re-generate.
@@ -86,6 +88,7 @@ export async function runPipeline(
   const {
     enableValidation = true,
     maxRetries = MAX_RETRIES,
+    baseCode,
   } = options;
 
   const history: PipelineAttempt[] = [];
@@ -93,6 +96,7 @@ export async function runPipeline(
   let bestValidation: ValidationResult | null = null;
   let currentPrompt = prompt;
   let attempts = 0;
+  let currentBaseCode = baseCode;
 
   const maxAttempts = enableValidation ? 1 + maxRetries : 1;
 
@@ -100,17 +104,22 @@ export async function runPipeline(
     attempts = i + 1;
 
     console.log(
-      `[Pipeline] Attempt ${attempts}/${maxAttempts} for ${diagramType} diagram`
+      `[Pipeline] Attempt ${attempts}/${maxAttempts} for ${diagramType} diagram ${currentBaseCode ? '(modification)' : '(generation)'}`
     );
 
-    // ── Step 1: Generate ───────────────────────────────────────────────────
+    // ── Step 1: Generate or Modify ─────────────────────────────────────────
 
     let generated: OllamaResponse;
     try {
-      generated = await generateWithOllama(currentPrompt, diagramType);
+      if (currentBaseCode && i === 0) {
+        // First attempt of a modification
+        generated = await modifyDiagramWithOllama(currentBaseCode, currentPrompt, diagramType);
+      } else {
+        // Standard generation or correction retry
+        generated = await generateWithOllama(currentPrompt, diagramType);
+      }
     } catch (error) {
-      console.error(`[Pipeline] Generation failed on attempt ${attempts}:`, error);
-      // If generation fails, stop the loop
+      console.error(`[Pipeline] AI call failed on attempt ${attempts}:`, error);
       break;
     }
 
@@ -145,14 +154,41 @@ export async function runPipeline(
 
       renderResult = await renderDiagramToImage(bestCode, diagramType);
     } catch (error) {
-      console.warn(`[Pipeline] Rendering failed on attempt ${attempts}:`, error);
+      const renderError = error instanceof Error ? error.message : String(error);
+      console.warn(`[Pipeline] Rendering failed on attempt ${attempts}:`, renderError);
+      
       history.push({
         attempt: attempts,
         code: bestCode,
         validation: null,
         rendered: false,
       });
-      // Can't render → can't validate → return what we have
+
+      // If rendering failed (likely syntax error), try to fix it if we have retries left
+      if (i < maxAttempts - 1) {
+        currentPrompt = `The following ${diagramType} diagram code has a syntax error.
+
+ERROR MESSAGE:
+"${renderError.substring(0, 500)}"
+
+ORIGINAL REQUEST:
+"${prompt}"
+
+CODE TO FIX:
+\`\`\`
+${bestCode}
+\`\`\`
+
+INSTRUCTIONS:
+1. Fix the syntax error shown above (check for missing values after colons, mismatched braces, or invalid node IDs).
+2. Ensure the first line is a valid diagram keyword (e.g., flowchart TD).
+3. Output ONLY the corrected ${diagramType} code. No explanations, no markdown fences.`;
+        
+        console.log(`[Pipeline] Attempting to fix syntax error for attempt ${attempts + 1}...`);
+        continue;
+      }
+      
+      // Can't render and no retries left
       break;
     }
 
