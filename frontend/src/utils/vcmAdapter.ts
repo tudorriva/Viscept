@@ -759,13 +759,23 @@ export function reactFlowToVCM(
     return rfNodeToVisualNode(rfn, prev.subType);
   });
 
+  // Ensure edges don't point to nodes that no longer exist (cascade delete)
+  const validNodeIds = new Set(nodes.map(n => n.id));
+
   // Merge RF edges with existing VCM data
-  const edges: VisualEdge[] = rfEdges.map((rfe) => {
+  const edges: VisualEdge[] = [];
+  for (const rfe of rfEdges) {
+    // Cascade delete: if a React Flow edge connects to a deleted node, skip it.
+    // This handles racy React Flow `onNodesChange` events where edges haven't been removed yet.
+    if (!validNodeIds.has(rfe.source) || !validNodeIds.has(rfe.target)) {
+      continue;
+    }
+
     const existing = prevEdgeMap.get(rfe.id);
 
     if (existing) {
       // Preserve cardinalities, custom arrows, metadata; update label/animated
-      return {
+      edges.push({
         ...existing,
         sourceNodeId: rfe.source,
         targetNodeId: rfe.target,
@@ -774,12 +784,12 @@ export function reactFlowToVCM(
         label: rfe.label ? String(rfe.label) : existing.label,
         animated: rfe.animated ?? existing.animated,
         lineType: inferEdgeLineType(rfe),
-      };
+      });
+    } else {
+      // Brand-new edge drawn in the visual editor
+      edges.push(rfEdgeToVisualEdge(rfe));
     }
-
-    // Brand-new edge drawn in the visual editor
-    return rfEdgeToVisualEdge(rfe);
-  });
+  }
 
   return updateDiagram(prev, { nodes, edges });
 }

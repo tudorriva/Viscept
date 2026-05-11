@@ -190,17 +190,36 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
   const handleDeleteSelected = useCallback(() => {
     if (!vcmRef.current || !engineRef.current) return;
 
-    const updated = engineRef.current.deleteSelected(vcmRef.current);
-    if (updated === vcmRef.current) return; // Nothing was selected
+    // Use React Flow state directly to ensure we don't miss selections due to async useOnSelectionChange
+    const selectedNodeIds = nodes.filter(n => n.selected).map(n => n.id);
+    const selectedEdgeIds = edges.filter(e => e.selected).map(e => e.id);
+
+    if (selectedNodeIds.length === 0 && selectedEdgeIds.length === 0) return;
+
+    // We can manually call deleteNode and deleteEdge on the engine
+    let updated = vcmRef.current;
+    for (const id of selectedNodeIds) {
+      updated = engineRef.current.deleteNode(updated, id);
+    }
+    for (const id of selectedEdgeIds) {
+      updated = engineRef.current.deleteEdge(updated, id);
+    }
+
+    if (updated === vcmRef.current) return; // Nothing was actually deleted
 
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
+    
+    // Clear selection state after deletion
+    engineRef.current.clearSelection();
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
 
     const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
     emitCode(updated, true);
-  }, [emitCode, setNodes, setEdges]);
+  }, [nodes, edges, emitCode, setNodes, setEdges]);
 
   const handleAutoLayout = useCallback(() => {
     if (!vcmRef.current || !engineRef.current) return;
@@ -360,10 +379,11 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
     setEdges(rfEdges);
     emitCode(updated, true);
-  }, [selectedEdgeId, emitCode, setEdges]);
+  }, [selectedEdgeId, emitCode, setNodes, setEdges]);
 
   const handleEdgeDelete = useCallback(() => {
     if (!vcmRef.current || !engineRef.current || !selectedEdgeId) return;
@@ -372,11 +392,12 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
     vcmRef.current = updated;
     engineRef.current.recordState(updated);
 
-    const { edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
     setEdges(rfEdges);
     setSelectedEdgeId(null);
     emitCode(updated, true);
-  }, [selectedEdgeId, emitCode, setEdges]);
+  }, [selectedEdgeId, emitCode, setNodes, setEdges]);
 
   const selectedNode = selectedNodeId && vcmRef.current
     ? vcmRef.current.nodes.find((n: any) => n.id === selectedNodeId)
@@ -540,8 +561,8 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
                   source={selectedEdge.sourceNodeId}
                   target={selectedEdge.targetNodeId}
                   label={selectedEdge.label}
-                  sourceArrow={selectedEdge.sourceArrow}
-                  targetArrow={selectedEdge.targetArrow}
+                  sourceArrow={selectedEdge.sourceArrow ?? 'none'}
+                  targetArrow={selectedEdge.targetArrow ?? 'none'}
                   onLabelChange={handleEdgeLabelChange}
                   onDirectionChange={handleEdgeDirectionChange}
                   onDelete={handleEdgeDelete}

@@ -499,7 +499,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
   const convertGraphvizToMermaid = (dot: string): string => {
     const dotLines = dot.split('\n').map((l) => l.trim()).filter(Boolean);
     const nodeLabels = new Map<string, string>();
-    const edgeList: { src: string; tgt: string; label?: string }[] = [];
+    const edgeList: { src: string; tgt: string; label?: string; direction?: string }[] = [];
     const nodeIds = new Set<string>();
 
     for (const dl of dotLines) {
@@ -509,18 +509,22 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       if (/^(rankdir|node|edge|graph|label|fontname|fontsize|size)\b/i.test(dl)) continue;
       if (/^\/\//.test(dl)) continue;
 
-      // Edges: A -> B [label="text"]
+      // Edges: A -> B [label="text", dir=back]
       const edgeMatch = dl.match(/["']?(\w+)["']?\s*(-[->])\s*["']?(\w+)["']?\s*(?:\[([^\]]*)\])?/);
       if (edgeMatch) {
-        const [, src, , tgt, attrs] = edgeMatch;
+        const [, src, arrowOp, tgt, attrs] = edgeMatch;
         nodeIds.add(src);
         nodeIds.add(tgt);
         let edgeLabel: string | undefined;
+        let direction = arrowOp === '--' ? 'none' : 'forward';
+        
         if (attrs) {
           const lm = attrs.match(/label\s*=\s*"([^"]*)"/);
           if (lm) edgeLabel = lm[1];
+          const dm = attrs.match(/dir\s*=\s*(forward|back|both|none)/);
+          if (dm) direction = dm[1];
         }
-        edgeList.push({ src, tgt, label: edgeLabel });
+        edgeList.push({ src, tgt, label: edgeLabel, direction });
         continue;
       }
 
@@ -534,22 +538,37 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
       }
     }
 
-    let mermaidCode = 'flowchart LR\n';
+    let mermaidCode = 'flowchart TB\n';
 
     for (const nId of nodeIds) {
       const label = nodeLabels.get(nId) || nId;
       mermaidCode += `  ${nId}["${label}"]\n`;
     }
 
-    for (const { src, tgt, label } of edgeList) {
+    for (const { src, tgt, label, direction } of edgeList) {
+      let arrow = '-->';
+      let realSrc = src;
+      let realTgt = tgt;
+
+      if (direction === 'none') {
+        arrow = '---';
+      } else if (direction === 'both') {
+        arrow = '<-->';
+      } else if (direction === 'back') {
+        // Swap source and target for reverse edge if Mermaid doesn't strictly support <--
+        realSrc = tgt;
+        realTgt = src;
+        arrow = '-->';
+      }
+
       if (label) {
-        mermaidCode += `  ${src} -->|${label}| ${tgt}\n`;
+        mermaidCode += `  ${realSrc} ${arrow}|${label}| ${realTgt}\n`;
       } else {
-        mermaidCode += `  ${src} --> ${tgt}\n`;
+        mermaidCode += `  ${realSrc} ${arrow} ${realTgt}\n`;
       }
     }
 
-    return mermaidCode.trim() || 'flowchart LR\n  A["Start"] --> B["End"]';
+    return mermaidCode.trim() || 'flowchart TB\n  A["Start"] --> B["End"]';
   };
 
   // ── Zoom / Pan handlers ────────────────────────────────────────────────
