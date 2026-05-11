@@ -77,13 +77,17 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           className="transition-opacity duration-200"
           style={{ opacity: leftSidebarOpen ? 1 : 0, pointerEvents: leftSidebarOpen ? 'auto' : 'none' }}
         >
-          <GradientBorderCard glow className="rounded-xl" gradient="accent">
+          <GradientBorderCard glow className="rounded-xl overflow-hidden" gradient="accent">
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
               onClick={onCreateChat}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-[calc(0.75rem-1px)] text-sm font-medium"
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-[calc(0.75rem-1px)] text-sm font-medium transition-colors"
               style={{ backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-elevated)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-panel)';
+              }}
             >
               <Plus size={15} />
               New Diagram

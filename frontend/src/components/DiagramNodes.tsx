@@ -23,19 +23,8 @@ import type { NodeShape } from '../types/vcm';
 
 // ── Shared handle styles ───────────────────────────────────────────────────────
 
-const targetHandleStyle: React.CSSProperties = {
-  width: 8,
-  height: 8,
-  border: `2px solid ${theme.colors.bg.primary}`,
-  background: theme.colors.accent.primary,
-};
-
-const sourceHandleStyle: React.CSSProperties = {
-  width: 8,
-  height: 8,
-  border: `2px solid ${theme.colors.bg.primary}`,
-  background: theme.colors.accent.secondary,
-};
+const targetHandleStyle: React.CSSProperties = {};
+const sourceHandleStyle: React.CSSProperties = {};
 
 // ── Shared inline-edit hook ────────────────────────────────────────────────────
 
