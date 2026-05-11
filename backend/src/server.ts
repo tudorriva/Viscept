@@ -13,7 +13,7 @@ const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Viscept Backend running on http://0.0.0.0:${PORT} (all interfaces)`);
   console.log(`   Ollama endpoint: ${process.env.OLLAMA_URL || 'http://localhost:11434'}`);
   console.log(`   Generative Model: ${process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b'}`);
-  console.log(`   Vision Model: ${process.env.OLLAMA_VLM_MODEL || 'qwen2.5vl:3b'}`);
+  console.log(`   Vision Model: ${process.env.VISION_MODEL || process.env.OLLAMA_VLM_MODEL || 'granite3.2-vision:2b'}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 

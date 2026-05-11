@@ -67,6 +67,7 @@ export interface RenderRequest {
   code: string;
   diagramType: 'plantuml';
   format?: 'svg';
+  themeMode?: 'dark' | 'paper' | 'transparent';
 }
 
 export interface RenderResponse {

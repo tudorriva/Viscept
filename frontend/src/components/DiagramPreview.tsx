@@ -135,15 +135,18 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     svgEl.style.width = String(w) + 'px';
     svgEl.style.height = String(h) + 'px';
 
-    // Simply center the SVG without any scaling
-    // This ensures text is never clipped
     const vw = viewportRef.current.clientWidth;
     const vh = viewportRef.current.clientHeight;
+    const padding = 48;
+    const fitScale = Math.max(
+      0.25,
+      Math.min(1, (vw - padding) / w, (vh - padding) / h)
+    );
 
-    setZoom(1);
+    setZoom(fitScale);
     setPan({
-      x: (vw - w) / 2,
-      y: (vh - h) / 2,
+      x: (vw - w * fitScale) / 2,
+      y: (vh - h * fitScale) / 2,
     });
   }, []);
 
@@ -344,6 +347,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
         code,
         diagramType: 'plantuml',
         format: 'svg',
+        themeMode: 'dark',
       });
 
       if (containerRef.current) {
@@ -636,10 +640,15 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
     }
     const vw = viewportRef.current.clientWidth;
     const vh = viewportRef.current.clientHeight;
-    setZoom(1);
+    const padding = 48;
+    const fitScale = Math.max(
+      0.25,
+      Math.min(1, (vw - padding) / w, (vh - padding) / h)
+    );
+    setZoom(fitScale);
     setPan({
-      x: (vw - w) / 2,
-      y: (vh - h) / 2,
+      x: (vw - w * fitScale) / 2,
+      y: (vh - h * fitScale) / 2,
     });
   }, []);
 
@@ -824,6 +833,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
         >
           <div 
             ref={containerRef} 
+            data-diagram-language={language}
             style={{ 
               display: 'inline-block',
               whiteSpace: 'pre',

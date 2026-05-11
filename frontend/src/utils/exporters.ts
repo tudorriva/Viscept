@@ -62,6 +62,35 @@ function findLargestSvg(element: HTMLElement): SVGSVGElement | null {
   return bestSvg;
 }
 
+function isPlantUMLExport(element: HTMLElement): boolean {
+  return !!element.querySelector('[data-diagram-language="plantuml"]');
+}
+
+function normalizePlantUMLPaperColors(svg: SVGSVGElement): void {
+  const lightText = new Set(['#f8fafc', '#e2e8f0', '#cbd5e1']);
+
+  svg.querySelectorAll<SVGElement>('*').forEach((el) => {
+    const fill = (el.getAttribute('fill') || '').toLowerCase();
+    const stroke = (el.getAttribute('stroke') || '').toLowerCase();
+
+    if (lightText.has(fill)) {
+      el.setAttribute('fill', '#0F172A');
+    }
+
+    if (stroke === '#cbd5e1' || stroke === '#94a3b8') {
+      el.setAttribute('stroke', '#334155');
+    }
+
+    if (el.style.fill && lightText.has(el.style.fill.toLowerCase())) {
+      el.style.fill = '#0F172A';
+    }
+
+    if (el.style.stroke && ['#cbd5e1', '#94a3b8'].includes(el.style.stroke.toLowerCase())) {
+      el.style.stroke = '#334155';
+    }
+  });
+}
+
 interface SvgExportResult {
   svgString: string;
   width: number;
@@ -138,6 +167,10 @@ function buildExportSvg(element: HTMLElement, options?: ExportOptions): SvgExpor
   
   const background = options?.background ?? 'transparent';
   clone.style.backgroundColor = background;
+
+  if (isPlantUMLExport(element) && /^#fff(?:fff)?$/i.test(background)) {
+    normalizePlantUMLPaperColors(clone);
+  }
 
   // Add explicit background rect if not transparent
   if (background && background !== 'transparent') {

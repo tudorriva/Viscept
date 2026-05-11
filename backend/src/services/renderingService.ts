@@ -42,6 +42,100 @@ export interface SvgRenderResult {
   format: 'svg';
 }
 
+export type PlantUMLThemeMode = 'dark' | 'paper' | 'transparent';
+
+const PLANTUML_DARK_THEME_MARKER = "' viscept-theme:dark";
+const PLANTUML_PAPER_THEME_MARKER = "' viscept-theme:paper";
+
+const PLANTUML_DARK_THEME = `${PLANTUML_DARK_THEME_MARKER}
+skinparam backgroundColor transparent
+skinparam defaultTextAlignment center
+skinparam shadowing false
+skinparam dpi 160
+skinparam DefaultFontColor #F8FAFC
+skinparam NoteBackgroundColor #1E293B
+skinparam NoteBorderColor #94A3B8
+skinparam NoteFontColor #F8FAFC
+skinparam sequence {
+  ArrowColor #CBD5E1
+  ArrowFontColor #F8FAFC
+  ArrowThickness 2
+  LifeLineBorderColor #64748B
+  LifeLineBackgroundColor transparent
+  ParticipantBorderColor #94A3B8
+  ParticipantBackgroundColor #E2E8F0
+  ParticipantFontColor #0F172A
+  ActorBorderColor #94A3B8
+  ActorBackgroundColor #E2E8F0
+  ActorFontColor #0F172A
+  GroupBorderColor #94A3B8
+  GroupBackgroundColor #1E293B
+  GroupHeaderFontColor #0F172A
+  GroupFontColor #F8FAFC
+  BoxBorderColor #94A3B8
+  BoxBackgroundColor transparent
+}`;
+
+const PLANTUML_PAPER_THEME = `${PLANTUML_PAPER_THEME_MARKER}
+skinparam backgroundColor #FFFFFF
+skinparam defaultTextAlignment center
+skinparam shadowing false
+skinparam dpi 160
+skinparam DefaultFontColor #0F172A
+skinparam NoteBackgroundColor #F8FAFC
+skinparam NoteBorderColor #64748B
+skinparam NoteFontColor #0F172A
+skinparam sequence {
+  ArrowColor #334155
+  ArrowFontColor #0F172A
+  ArrowThickness 2
+  LifeLineBorderColor #94A3B8
+  LifeLineBackgroundColor transparent
+  ParticipantBorderColor #64748B
+  ParticipantBackgroundColor #E2E8F0
+  ParticipantFontColor #0F172A
+  ActorBorderColor #64748B
+  ActorBackgroundColor #E2E8F0
+  ActorFontColor #0F172A
+  GroupBorderColor #64748B
+  GroupBackgroundColor #F8FAFC
+  GroupHeaderFontColor #0F172A
+  GroupFontColor #0F172A
+  BoxBorderColor #64748B
+  BoxBackgroundColor transparent
+}`;
+
+function normalizePlantUMLBoundaries(code: string): string {
+  let normalized = code.trim();
+
+  if (!/@startuml\b/i.test(normalized)) {
+    normalized = `@startuml\n${normalized}`;
+  }
+
+  if (!/@enduml\b/i.test(normalized)) {
+    normalized = `${normalized}\n@enduml`;
+  }
+
+  return normalized;
+}
+
+export function ensurePlantUMLTheme(
+  code: string,
+  themeMode: PlantUMLThemeMode = 'dark'
+): string {
+  const normalized = normalizePlantUMLBoundaries(code);
+
+  if (
+    normalized.includes(PLANTUML_DARK_THEME_MARKER) ||
+    normalized.includes(PLANTUML_PAPER_THEME_MARKER)
+  ) {
+    return normalized;
+  }
+
+  const theme = themeMode === 'paper' ? PLANTUML_PAPER_THEME : PLANTUML_DARK_THEME;
+  return normalized.replace(/(@startuml[^\r\n]*)(\r?\n)?/i, `$1\n${theme}\n`);
+}
+
 // ── Temp Directory Management ──────────────────────────────────────────────────
 
 const TEMP_DIR = path.join(os.tmpdir(), 'viscept-renders');
@@ -118,9 +212,10 @@ async function renderMermaid(code: string): Promise<RenderResult> {
 async function renderPlantUML(code: string): Promise<RenderResult> {
   const inputPath = tempFilePath('puml');
   const outputPath = tempFilePath('png');
+  const themedCode = ensurePlantUMLTheme(code, 'dark');
 
   try {
-    fs.writeFileSync(inputPath, code, 'utf-8');
+    fs.writeFileSync(inputPath, themedCode, 'utf-8');
 
     // Try using plantuml.jar if available
     await execAsync(
@@ -148,7 +243,7 @@ async function renderPlantUML(code: string): Promise<RenderResult> {
     console.warn('[Renderer] plantuml.jar PNG rendering failed, trying PlantUML server:', jarMsg);
 
     try {
-      const encoded = plantumlEncoder.encode(code);
+      const encoded = plantumlEncoder.encode(themedCode);
       const response = await axios.get(`${PLANTUML_SERVER}/png/${encoded}`, {
         responseType: 'arraybuffer',
         timeout: 30000,
@@ -171,11 +266,15 @@ async function renderPlantUML(code: string): Promise<RenderResult> {
   }
 }
 
-async function renderPlantUMLSvg(code: string): Promise<SvgRenderResult> {
+async function renderPlantUMLSvg(
+  code: string,
+  themeMode: PlantUMLThemeMode = 'dark'
+): Promise<SvgRenderResult> {
   const inputPath = tempFilePath('puml');
+  const themedCode = ensurePlantUMLTheme(code, themeMode);
 
   try {
-    fs.writeFileSync(inputPath, code, 'utf-8');
+    fs.writeFileSync(inputPath, themedCode, 'utf-8');
 
     await execAsync(
       `java -jar plantuml.jar -tsvg -o "${path.dirname(inputPath)}" "${inputPath}"`,
@@ -194,7 +293,7 @@ async function renderPlantUMLSvg(code: string): Promise<SvgRenderResult> {
     const jarMsg = error instanceof Error ? error.message : String(error);
     console.warn('[Renderer] plantuml.jar SVG rendering failed, trying PlantUML server:', jarMsg);
 
-    const encoded = plantumlEncoder.encode(code);
+    const encoded = plantumlEncoder.encode(themedCode);
     const response = await axios.get(`${PLANTUML_SERVER}/svg/${encoded}`, {
       responseType: 'text',
       timeout: 30000,
@@ -460,13 +559,14 @@ export async function renderDiagramToImage(
 
 export async function renderDiagramToSvg(
   code: string,
-  diagramType: string
+  diagramType: string,
+  options: { themeMode?: PlantUMLThemeMode } = {}
 ): Promise<SvgRenderResult> {
   console.log(`[Renderer] Rendering ${diagramType} diagram to SVG (${code.length} chars)...`);
 
   switch (diagramType) {
     case 'plantuml':
-      return renderPlantUMLSvg(code);
+      return renderPlantUMLSvg(code, options.themeMode ?? 'dark');
     default:
       throw new Error(`SVG rendering is not supported for diagram type: ${diagramType}`);
   }

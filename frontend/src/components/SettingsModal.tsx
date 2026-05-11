@@ -270,7 +270,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   }}
                 >
                   <option value="granite3.2-vision:2b">Granite3.2 Vision 2B (Recommended)</option>
-                  <option value="qwen2.5vl:3b">Qwen2.5-VL 3B (Larger)</option>
                   <option value="moondream:latest">Moondream2 1.9B (Faster)</option>
                 </select>
                 <p className="text-xs mt-1" style={{ color: theme.colors.text.tertiary }}>

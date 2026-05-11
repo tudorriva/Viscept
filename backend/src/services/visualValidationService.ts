@@ -11,8 +11,6 @@
 
 import 'dotenv/config';
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
 
 // ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -22,13 +20,14 @@ function normalizeOllamaBaseUrl(raw?: string): string {
 }
 
 const OLLAMA_BASE_URL = normalizeOllamaBaseUrl(process.env.OLLAMA_URL);
-const VLM_MODEL = process.env.OLLAMA_VLM_MODEL || 'granite3.2-vision:2b';
+const VLM_MODEL = process.env.VISION_MODEL || process.env.OLLAMA_VLM_MODEL || 'granite3.2-vision:2b';
 const CODER_MODEL = process.env.OLLAMA_MODEL || 'viscept';
-const VLM_TIMEOUT = parseInt(process.env.VLM_TIMEOUT || '300000', 10);
+const VLM_TIMEOUT = parseInt(process.env.VLM_TIMEOUT || '120000', 10);
 // If true, evict the coder from VRAM before running the VLM (needed when both
-// models can't fit simultaneously, e.g. qwen2.5vl:7b on a 12GB card).
+// models can't fit simultaneously).
 // granite3.2-vision:2b is small enough to co-reside with most models.
 const VLM_EVICT_CODER = process.env.VLM_EVICT_CODER === 'true';
+const MODEL_CHECK_TIMEOUT = parseInt(process.env.VLM_MODEL_CHECK_TIMEOUT || '5000', 10);
 
 /**
  * Evict a model from VRAM by sending a generate request with keep_alive: 0.
@@ -44,6 +43,22 @@ async function evictModel(model: string): Promise<void> {
     console.log(`[VisualValidation] Evicted ${model} from VRAM.`);
   } catch {
     // Model may not be loaded — that's fine, nothing to evict.
+  }
+}
+
+async function ensureVisionModelAvailable(): Promise<void> {
+  const response = await axios.get(`${OLLAMA_BASE_URL}/api/tags`, {
+    timeout: MODEL_CHECK_TIMEOUT,
+  });
+
+  const models: string[] = (response.data.models || []).map(
+    (m: { name: string }) => m.name
+  );
+
+  if (!models.includes(VLM_MODEL)) {
+    throw new Error(
+      `Vision model ${VLM_MODEL} is not available in Ollama. Run: ollama pull ${VLM_MODEL}`
+    );
   }
 }
 
@@ -93,9 +108,10 @@ export async function validateDiagramVisually(
 ): Promise<ValidationResult> {
   try {
     console.log(`[VisualValidation] Inspecting ${request.diagramType} diagram with ${VLM_MODEL}...`);
+    await ensureVisionModelAvailable();
 
     // Optionally free VRAM before loading the VLM (set VLM_EVICT_CODER=true in
-    // .env when using a larger VLM like qwen2.5vl:3b on a 4GB card).
+    // .env when using a larger VLM on a constrained GPU).
     if (VLM_EVICT_CODER) {
       await evictModel(CODER_MODEL);
       await new Promise((r) => setTimeout(r, 1500));
@@ -298,9 +314,7 @@ export async function checkVLMHealth(): Promise<{
       (m: { name: string }) => m.name
     );
 
-    const available = models.some(
-      (m) => m.startsWith(VLM_MODEL.split(':')[0])
-    );
+    const available = models.includes(VLM_MODEL);
 
     return { available, model: VLM_MODEL, models };
   } catch {

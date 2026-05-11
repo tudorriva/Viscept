@@ -39,6 +39,7 @@ interface RenderRequest {
   code: string;
   diagramType: string;
   format?: 'svg';
+  themeMode?: 'dark' | 'paper' | 'transparent';
 }
 
 /**
@@ -189,7 +190,7 @@ export async function validateDiagram(req: Request, res: Response): Promise<void
  * POST /api/render - Render diagram code for frontend preview/export.
  */
 export async function renderDiagram(req: Request, res: Response): Promise<void> {
-  const { code, diagramType, format = 'svg' } = req.body as RenderRequest;
+  const { code, diagramType, format = 'svg', themeMode = 'dark' } = req.body as RenderRequest;
 
   if (!code || typeof code !== 'string') {
     res.status(400).json({ error: 'code is required and must be a string' });
@@ -208,7 +209,7 @@ export async function renderDiagram(req: Request, res: Response): Promise<void> 
   }
 
   try {
-    const result = await renderDiagramToSvg(code, diagramType);
+    const result = await renderDiagramToSvg(code, diagramType, { themeMode });
     res.json({
       svg: result.svg,
       language: diagramType,

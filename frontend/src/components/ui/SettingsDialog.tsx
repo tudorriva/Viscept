@@ -254,8 +254,8 @@ const AITab: React.FC<{ settings: Record<string, unknown>; onChange: (k: string,
     <SepRow />
     <Row label="Vision Model" description="Model for diagram validation">
       <StyledSelect
-        value={(settings.visionModel as string) ?? 'llava:13b'}
-        options={['llava:13b', 'llava:7b']}
+        value={(settings.visionModel as string) ?? 'granite3.2-vision:2b'}
+        options={['granite3.2-vision:2b']}
         onChange={(v) => onChange('visionModel', v)}
       />
     </Row>

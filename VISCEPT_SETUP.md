@@ -59,7 +59,7 @@ To activate the changes:
 
 ## VLM Update
 
-Also updated Vision Model to `qwen2.5vl:3b` which is:
-- More capable than `granite3.2-vision:2b`
-- Better at understanding complex diagrams
-- Still fits in 4GB VRAM with model unloading
+Also updated Vision Model to `granite3.2-vision:2b` which is:
+- Faster than `qwen2.5vl:3b`
+- Small and highly efficient (2B parameters)
+- Can co-reside in VRAM with the generative model on most systems
