@@ -97,7 +97,12 @@ const MermaidCanvasEditorInner: React.FC<MermaidCanvasEditorProps> = ({ code, on
     const gen = ++codeDrivenGenRef.current;
 
     try {
-      const vcm = dslToVCM(currentCode, 'mermaid');
+      let vcm = dslToVCM(currentCode, 'mermaid');
+      
+      // Automatically layout the diagram right after parsing to ensure readable routing
+      if (engineRef.current) {
+        vcm = engineRef.current.autoLayoutDiagram(vcm, vcm.direction || 'TB');
+      }
       
       const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm, handleInlineNodeLabelChange);
       

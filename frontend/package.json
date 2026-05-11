@@ -23,6 +23,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "dagre": "^0.8.5",
+    "elkjs": "^0.11.1",
     "framer-motion": "^12.5.0",
     "html-to-image": "^1.11.13",
     "jspdf": "^3.0.3",
@@ -35,6 +37,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.54",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.0",

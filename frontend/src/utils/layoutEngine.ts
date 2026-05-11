@@ -2,7 +2,7 @@
  * layoutEngine — automatic layout algorithms for the VCM.
  *
  * Provides two strategies:
- *   1. **Topological (layered)**:  Kahn's algorithm assigns layers, nodes are
+ *   1. **Topological (layered)**:  Uses Dagre to assign layers, nodes are
  *      spread within each layer.  Works well for DAGs (flowcharts, pipelines).
  *   2. **Grid**:  Simple row/column grid for non-directional diagrams (ER, class).
  *
@@ -16,6 +16,7 @@
 
 import type { VisualDiagram, VisualNode, VisualGroup } from '../types/vcm';
 import { updateDiagram } from '../types/vcm';
+import dagre from 'dagre';
 
 // ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -45,8 +46,8 @@ export interface LayoutOptions {
 const DEFAULTS: Required<LayoutOptions> = {
   algorithm: 'topological',
   direction: 'TB',
-  nodeGapX: 200,
-  nodeGapY: 120,
+  nodeGapX: 120, // Reduced from 200 since dagre nodesep handles it better
+  nodeGapY: 100, // ranksep
   groupPadding: 40,
   nodeWidth: 160,
   nodeHeight: 60,
@@ -83,97 +84,58 @@ export function autoLayout(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Topological (layered) layout  — Kahn's algorithm
+// Topological (layered) layout  — Dagre layout
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function topologicalLayout(
   diagram: VisualDiagram,
   cfg: Required<LayoutOptions>,
 ): VisualDiagram {
-  const nodeIds = diagram.nodes.map((n) => n.id);
-  const nodeSet = new Set(nodeIds);
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({
+    rankdir: cfg.direction,
+    ranksep: cfg.nodeGapY,
+    nodesep: cfg.nodeGapX,
+    edgesep: cfg.nodeGapX / 2,
+    marginx: 40,
+    marginy: 40,
+  });
+  g.setDefaultEdgeLabel(() => ({}));
 
-  // Build adjacency
-  const inDegree = new Map<string, number>();
-  const adj = new Map<string, string[]>();
-  for (const id of nodeIds) {
-    inDegree.set(id, 0);
-    adj.set(id, []);
-  }
+  diagram.nodes.forEach((n) => {
+    // We add some extra width if the label is long, so Dagre can avoid overlaps.
+    const estimatedWidth = Math.max(cfg.nodeWidth, (n.label.length * 8) + 40);
+    g.setNode(n.id, { width: estimatedWidth, height: cfg.nodeHeight });
+  });
 
-  for (const e of diagram.edges) {
-    if (!nodeSet.has(e.sourceNodeId) || !nodeSet.has(e.targetNodeId)) continue;
-    adj.get(e.sourceNodeId)!.push(e.targetNodeId);
-    inDegree.set(e.targetNodeId, (inDegree.get(e.targetNodeId) ?? 0) + 1);
-  }
+  diagram.edges.forEach((e) => {
+    // If the edge has a label, tell Dagre it needs some space.
+    const minlen = e.label ? 2 : 1; 
+    const weight = 1;
+    // Estimate label width so edges don't overlap as much
+    const labelWidth = e.label ? e.label.length * 7 : 0;
+    const labelHeight = e.label ? 20 : 0;
 
-  // Kahn's BFS to assign layers
-  const queue: string[] = [];
-  for (const [id, deg] of inDegree) {
-    if (deg === 0) queue.push(id);
-  }
+    g.setEdge(e.sourceNodeId, e.targetNodeId, {
+      minlen,
+      weight,
+      width: labelWidth,
+      height: labelHeight,
+      labelpos: 'c',
+    });
+  });
 
-  const layers: string[][] = [];
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const layer: string[] = [...queue];
-    layers.push(layer);
-    const nextQueue: string[] = [];
-
-    for (const id of layer) {
-      visited.add(id);
-      for (const neighbour of adj.get(id) ?? []) {
-        const newDeg = (inDegree.get(neighbour) ?? 1) - 1;
-        inDegree.set(neighbour, newDeg);
-        if (newDeg === 0 && !visited.has(neighbour)) {
-          nextQueue.push(neighbour);
-        }
-      }
-    }
-
-    queue.length = 0;
-    queue.push(...nextQueue);
-  }
-
-  // Any nodes not reached (cycles) go into an extra layer
-  const unvisited = nodeIds.filter((id) => !visited.has(id));
-  if (unvisited.length > 0) layers.push(unvisited);
-
-  // Assign positions based on layer & index within layer
-  const posMap = new Map<string, { x: number; y: number }>();
-  const isHorizontal = cfg.direction === 'LR' || cfg.direction === 'RL';
-  const isReversed = cfg.direction === 'RL' || cfg.direction === 'BT';
-
-  for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
-    const layer = layers[layerIdx];
-    // Centre the layer
-    const layerWidth = layer.length * (isHorizontal ? cfg.nodeGapY : cfg.nodeGapX);
-    const startOffset = -layerWidth / 2;
-
-    for (let nodeIdx = 0; nodeIdx < layer.length; nodeIdx++) {
-      let primary = layerIdx * (isHorizontal ? cfg.nodeGapX : cfg.nodeGapY);
-      if (isReversed) primary = (layers.length - 1 - layerIdx) * (isHorizontal ? cfg.nodeGapX : cfg.nodeGapY);
-      const cross = startOffset + nodeIdx * (isHorizontal ? cfg.nodeGapY : cfg.nodeGapX);
-
-      const x = isHorizontal ? primary : cross;
-      const y = isHorizontal ? cross : primary;
-
-      posMap.set(layer[nodeIdx], { x, y });
-    }
-  }
-
-  // Normalise positions so top-left is (40, 40)
-  const allPositions = Array.from(posMap.values());
-  const minX = Math.min(...allPositions.map((p) => p.x));
-  const minY = Math.min(...allPositions.map((p) => p.y));
-  const offsetX = 40 - minX;
-  const offsetY = 40 - minY;
+  dagre.layout(g);
 
   const nodes: VisualNode[] = diagram.nodes.map((n) => {
-    const pos = posMap.get(n.id);
-    if (!pos) return n;
-    return { ...n, position: { x: pos.x + offsetX, y: pos.y + offsetY } };
+    const nodeWithPosition = g.node(n.id);
+    if (!nodeWithPosition) return n;
+    
+    // Dagre returns the center position, but React Flow expects the top-left corner.
+    const x = nodeWithPosition.x - nodeWithPosition.width / 2;
+    const y = nodeWithPosition.y - nodeWithPosition.height / 2;
+    
+    return { ...n, position: { x, y } };
   });
 
   return updateDiagram(diagram, { nodes });

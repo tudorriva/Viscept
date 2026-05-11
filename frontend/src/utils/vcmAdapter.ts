@@ -499,8 +499,11 @@ export function visualEdgeToRF(vEdge: VisualEdge): Edge {
     },
     markerStart: arrowToMarker(vEdge.sourceArrow, strokeColor),
     markerEnd: arrowToMarker(vEdge.targetArrow, strokeColor),
-    labelShowBg: false,
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
+    labelShowBg: true,
+    labelBgStyle: { fill: '#1e293b', fillOpacity: 0.9, color: '#f8fafc', stroke: '#334155', strokeWidth: 1, rx: 4, ry: 4 },
+    labelBgPadding: [6, 4],
+    labelBgBorderRadius: 4,
+    labelStyle: { fill: '#f8fafc', fontSize: 11, fontWeight: 500 },
   } as Edge;
 }
 

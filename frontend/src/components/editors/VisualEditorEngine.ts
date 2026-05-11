@@ -288,7 +288,7 @@ export class VisualEditorEngine {
   /**
    * Apply auto-layout to all nodes.
    */
-  autoLayoutDiagram(vcm: VisualDiagram, direction: 'TB' | 'LR' = 'TB'): VisualDiagram {
+  autoLayoutDiagram(vcm: VisualDiagram, direction: 'TB' | 'LR' | 'RL' | 'BT' = 'TB'): VisualDiagram {
     return autoLayout(vcm, { direction });
   }
 
