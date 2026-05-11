@@ -700,7 +700,9 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
             </div>
             <div className="text-center">
               <p className="text-sm font-semibold" style={{ color: theme.colors.text.primary }}>Generating diagram...</p>
-              <p className="text-xs mt-1.5" style={{ color: theme.colors.text.tertiary }}>Auto-correcting if needed</p>
+              <p className="text-xs mt-1.5" style={{ color: theme.colors.text.tertiary }}>
+                {elapsedSeconds >= estimatedTime ? 'Taking longer than anticipated...' : 'Auto-correcting if needed'}
+              </p>
               {/* Elapsed / estimated timer */}
               <div className="mt-3 flex items-center justify-center gap-2">
                 <div
@@ -711,7 +713,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
                     border: `1px solid ${theme.colors.border.medium}`,
                   }}
                 >
-                  {elapsedSeconds}s / ~{estimatedTime}s
+                  {elapsedSeconds >= estimatedTime ? `${elapsedSeconds}s` : `${elapsedSeconds}s / ~${estimatedTime}s`}
                 </div>
                 {/* Progress bar */}
                 <div
@@ -721,7 +723,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
                   <div
                     className="h-full rounded-full transition-all duration-1000 ease-linear"
                     style={{
-                      width: `${Math.min(95, (elapsedSeconds / estimatedTime) * 100)}%`,
+                      width: `${elapsedSeconds >= estimatedTime ? 100 : Math.min(95, (elapsedSeconds / estimatedTime) * 100)}%`,
                       background: `linear-gradient(90deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary})`,
                     }}
                   />

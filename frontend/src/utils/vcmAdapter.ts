@@ -50,7 +50,7 @@ import {
 } from '../types/vcm';
 
 import { parseDiagramCode, type ParsedDiagram } from './diagramParser';
-import { serializeDiagram } from './diagramSerializer';
+import { serializeDiagram, serializeGraphvizVCM } from './diagramSerializer';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1.  ParsedDiagram → VisualDiagram
@@ -567,9 +567,36 @@ export function vcmToReactFlow(
 
   // Filter edges that reference hidden nodes
   const edges: Edge[] = [];
+  
+  // Detect parallel edges to optionally change their type so they don't overlap completely
+  const edgePairCounts = new Map<string, number>();
   for (const e of diagram.edges) {
     if (hiddenNodeIds.has(e.sourceNodeId) || hiddenNodeIds.has(e.targetNodeId)) continue;
-    edges.push(visualEdgeToRF(e));
+    const pairKey = [e.sourceNodeId, e.targetNodeId].sort().join('|');
+    edgePairCounts.set(pairKey, (edgePairCounts.get(pairKey) || 0) + 1);
+  }
+
+  const currentPairIndexes = new Map<string, number>();
+
+  for (const e of diagram.edges) {
+    if (hiddenNodeIds.has(e.sourceNodeId) || hiddenNodeIds.has(e.targetNodeId)) continue;
+    
+    const rfEdge = visualEdgeToRF(e);
+    
+    const pairKey = [e.sourceNodeId, e.targetNodeId].sort().join('|');
+    const totalInPair = edgePairCounts.get(pairKey) || 1;
+    const currentIndex = currentPairIndexes.get(pairKey) || 0;
+    
+    if (totalInPair > 1) {
+      // Parallel edges: we switch them to 'default' (bezier) or adjust handles if we had a custom edge.
+      // For now, making them 'default' helps them curve a bit differently depending on handles.
+      // We will also pass the index via data so a custom edge could read it if registered later.
+      rfEdge.type = 'default';
+      rfEdge.data = { ...rfEdge.data, parallelIndex: currentIndex, totalParallel: totalInPair };
+    }
+    
+    currentPairIndexes.set(pairKey, currentIndex + 1);
+    edges.push(rfEdge);
   }
 
   return { nodes, edges };
@@ -623,6 +650,11 @@ function wrapLabelForShape(label: string, shape: NodeShape): string {
  * existing serializer only emits `["label"]` (rect) for all nodes.
  */
 export function vcmToDSL(diagram: VisualDiagram): string {
+  // Graphviz now has a direct VCM-to-DSL serializer that preserves edge directions perfectly.
+  if (diagram.language === 'graphviz') {
+    return serializeGraphvizVCM(diagram);
+  }
+
   const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(diagram);
 
   const rawDSL = serializeDiagram(

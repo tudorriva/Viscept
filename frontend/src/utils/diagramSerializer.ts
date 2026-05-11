@@ -181,24 +181,56 @@ function serializeDBML(nodes: Node[], edges: Edge[]): string {
 
 // ── Graphviz Serializer ────────────────────────────────────────────────────────
 
-function serializeGraphviz(nodes: Node[], edges: Edge[]): string {
-  const lines: string[] = ['digraph {', '    rankdir=LR;'];
+import type { VisualDiagram } from '../types/vcm';
+
+export function serializeGraphvizVCM(diagram: VisualDiagram): string {
+  const isDirected = diagram.subType !== 'graph';
+  const graphType = isDirected ? 'digraph' : 'graph';
+  const edgeOp = isDirected ? '->' : '--';
+
+  const lines: string[] = [`${graphType} {`, '    rankdir=TB;']; // TB is default for Graphviz
 
   // Node definitions
-  for (const node of nodes) {
-    const label = String(node.data?.label || node.id);
+  for (const node of diagram.nodes) {
+    const label = String(node.label || node.id);
     lines.push(`    ${node.id} [label="${label}"];`);
   }
 
   lines.push('');
 
   // Edge definitions
-  for (const edge of edges) {
-    if (edge.label) {
-      lines.push(`    ${edge.source} -> ${edge.target} [label="${edge.label}"];`);
+  for (const edge of diagram.edges) {
+    let dirAttr = '';
+    
+    // Determine direction from VCM sourceArrow and targetArrow
+    const hasStart = edge.sourceArrow !== 'none';
+    const hasEnd = edge.targetArrow !== 'none';
+    
+    if (isDirected) {
+      if (hasStart && hasEnd) {
+        dirAttr = 'dir=both';
+      } else if (hasStart && !hasEnd) {
+        dirAttr = 'dir=back';
+      } else if (!hasStart && !hasEnd) {
+        dirAttr = 'dir=none';
+      }
     } else {
-      lines.push(`    ${edge.source} -> ${edge.target};`);
+      // For undirected graph, we can use dir=forward etc if we really want, but typically we just don't.
+      if (hasStart && hasEnd) {
+        dirAttr = 'dir=both';
+      } else if (!hasStart && hasEnd) {
+        dirAttr = 'dir=forward';
+      } else if (hasStart && !hasEnd) {
+        dirAttr = 'dir=back';
+      }
     }
+
+    const attrs: string[] = [];
+    if (edge.label) attrs.push(`label="${edge.label}"`);
+    if (dirAttr) attrs.push(dirAttr);
+
+    const attrString = attrs.length > 0 ? ` [${attrs.join(', ')}]` : '';
+    lines.push(`    ${edge.sourceNodeId} ${edgeOp} ${edge.targetNodeId}${attrString};`);
   }
 
   lines.push('}');
@@ -209,11 +241,12 @@ function serializeGraphviz(nodes: Node[], edges: Edge[]): string {
 
 /**
  * Serialize React Flow nodes & edges back to diagram code.
+ * Note: Graphviz does not use this function anymore, it uses serializeGraphvizVCM directly.
  *
  * @param nodes - React Flow nodes
  * @param edges - React Flow edges
- * @param language - The diagram language ("mermaid", "dbml", "graphviz")
- * @param subType - The Mermaid sub-type (e.g. "flowchart", "classDiagram", "erDiagram")
+ * @param language - The diagram language ("mermaid", "dbml")
+ * @param subType - The diagram sub-type (e.g. "flowchart", "classDiagram", "erDiagram")
  */
 export function serializeDiagram(
   nodes: Node[],
@@ -227,8 +260,6 @@ export function serializeDiagram(
         return serializeMermaidBySubType(nodes, edges, subType);
       case 'dbml':
         return serializeDBML(nodes, edges);
-      case 'graphviz':
-        return serializeGraphviz(nodes, edges);
       default:
         return serializeMermaidFlowchart(nodes, edges);
     }

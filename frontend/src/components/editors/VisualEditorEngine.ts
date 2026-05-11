@@ -215,6 +215,29 @@ export class VisualEditorEngine {
   }
 
   /**
+   * Update an edge's direction (for Graphviz).
+   */
+  updateEdgeDirection(vcm: VisualDiagram, edgeId: string, direction: 'forward' | 'back' | 'both' | 'none'): VisualDiagram {
+    let sourceArrow: 'none' | 'arrowClosed' = 'none';
+    let targetArrow: 'none' | 'arrowClosed' = 'none';
+
+    if (direction === 'forward') {
+      targetArrow = 'arrowClosed';
+    } else if (direction === 'back') {
+      sourceArrow = 'arrowClosed';
+    } else if (direction === 'both') {
+      sourceArrow = 'arrowClosed';
+      targetArrow = 'arrowClosed';
+    }
+
+    return {
+      ...vcm,
+      edges: vcm.edges.map((e) => (e.id === edgeId ? { ...e, sourceArrow, targetArrow } : e)),
+      version: vcm.version + 1,
+    };
+  }
+
+  /**
    * Update an edge's cardinality (for ER/DBML diagrams).
    */
   updateEdgeCardinality(

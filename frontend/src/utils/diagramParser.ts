@@ -9,6 +9,7 @@
  */
 
 import type { Node, Edge } from '@xyflow/react';
+import { MarkerType } from '@xyflow/react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ interface RawEdge {
   label?: string;
   type?: string; // "arrow" | "dashed" | "thick" | "dotted"
   cardinality?: string; // "many-to-one" | "one-to-one" | "many-to-many" | "one"
+  direction?: 'forward' | 'back' | 'both' | 'none'; // Edge direction for Graphviz
 }
 
 // ── Auto-Layout ────────────────────────────────────────────────────────────────
@@ -137,17 +139,41 @@ function buildEdges(
   rawEdges: RawEdge[],
   opts: { animated?: boolean } = {}
 ): Edge[] {
-  return rawEdges.map((re, i) => ({
-    id: `e-${re.source}-${re.target}-${i}`,
-    source: re.source,
-    target: re.target,
-    label: re.label,
-    type: 'smoothstep',
-    animated: opts.animated ?? re.type === 'dashed',
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as any, color: '#64748b' },
-    labelStyle: { fill: '#cbd5e1', fontSize: 11 },
-  }));
+  return rawEdges.map((re, i) => {
+    let markerStart: Edge['markerStart'];
+    let markerEnd: Edge['markerEnd'];
+
+    const arrowColor = '#64748b';
+    const marker = { type: MarkerType.ArrowClosed, color: arrowColor };
+
+    // Default to forward if re.direction is entirely missing but it was parsed as arrow.
+    const dir = re.direction || (re.type === 'dashed' || re.type === 'arrow' ? 'forward' : 'forward');
+
+    if (dir === 'forward') {
+      markerEnd = marker;
+    } else if (dir === 'back') {
+      markerStart = marker;
+    } else if (dir === 'both') {
+      markerStart = marker;
+      markerEnd = marker;
+    } else if (dir === 'none') {
+      markerStart = undefined;
+      markerEnd = undefined;
+    }
+
+    return {
+      id: `e-${re.source}-${re.target}-${i}`,
+      source: re.source,
+      target: re.target,
+      label: re.label,
+      type: 'smoothstep',
+      animated: opts.animated ?? re.type === 'dashed',
+      style: { stroke: arrowColor, strokeWidth: 2 },
+      markerStart,
+      markerEnd,
+      labelStyle: { fill: '#cbd5e1', fontSize: 11 },
+    };
+  });
 }
 
 // ── Mermaid Parser ─────────────────────────────────────────────────────────────
@@ -649,20 +675,29 @@ function parseGraphviz(code: string): ParsedDiagram {
   const nodeIds = new Set<string>();
 
   const lines = code.split('\n').map((l) => l.trim()).filter(Boolean);
+  
+  let isDirected = true;
 
   for (const line of lines) {
-    // Skip graph/digraph and closing braces
-    if (/^(strict\s+)?(di)?graph\b/i.test(line)) continue;
+    // Check graph/digraph
+    if (/^(strict\s+)?digraph\b/i.test(line)) {
+      isDirected = true;
+      continue;
+    }
+    if (/^(strict\s+)?graph\b/i.test(line)) {
+      isDirected = false;
+      continue;
+    }
     if (line === '{' || line === '}') continue;
     if (/^(rankdir|node|edge|graph|label|fontname|fontsize|size)\b/i.test(line)) continue;
     if (/^\/\//.test(line)) continue;
 
-    // Edge: A -> B [label="text"]
+    // Edge: A -> B [label="text", dir=both]
     const edgeMatch = line.match(
       /["']?(\w+)["']?\s*(-[->])\s*["']?(\w+)["']?\s*(?:\[([^\]]*)\])?/
     );
     if (edgeMatch) {
-      const [, src, , tgt, attrs] = edgeMatch;
+      const [, src, arrow, tgt, attrs] = edgeMatch;
 
       // Ensure source and target nodes exist
       if (!nodeIds.has(src)) {
@@ -674,14 +709,29 @@ function parseGraphviz(code: string): ParsedDiagram {
         nodeIds.add(tgt);
       }
 
-      // Extract label from attributes
+      // Extract label and direction from attributes
       let edgeLabel: string | undefined;
+      let direction: 'forward' | 'back' | 'both' | 'none' | undefined;
+      
       if (attrs) {
         const labelMatch = attrs.match(/label\s*=\s*"([^"]*)"/);
         if (labelMatch) edgeLabel = labelMatch[1];
+        
+        const dirMatch = attrs.match(/dir\s*=\s*(forward|back|both|none)/);
+        if (dirMatch) {
+          direction = dirMatch[1] as 'forward' | 'back' | 'both' | 'none';
+        }
+      }
+      
+      if (!direction) {
+        if (!isDirected || arrow === '--') {
+          direction = 'none';
+        } else {
+          direction = 'forward';
+        }
       }
 
-      rawEdges.push({ source: src, target: tgt, label: edgeLabel });
+      rawEdges.push({ source: src, target: tgt, label: edgeLabel, direction });
       continue;
     }
 
@@ -705,7 +755,7 @@ function parseGraphviz(code: string): ParsedDiagram {
   const nodes = autoLayout(rawNodes, rawEdges);
   const edges = buildEdges(rawEdges);
 
-  return { nodes, edges, diagramType: 'graphviz', subType: 'digraph' };
+  return { nodes, edges, diagramType: 'graphviz', subType: isDirected ? 'digraph' : 'graph' };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

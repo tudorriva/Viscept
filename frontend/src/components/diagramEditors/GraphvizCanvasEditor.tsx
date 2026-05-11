@@ -9,7 +9,7 @@
  * - Graph clustering/subgraphs
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -21,6 +21,7 @@ import {
   useEdgesState,
   useReactFlow,
   addEdge as rfAddEdge,
+  useOnSelectionChange,
   applyNodeChanges,
   applyEdgeChanges,
   type Connection,
@@ -29,11 +30,16 @@ import {
   BackgroundVariant,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Plus, Trash2, LayoutGrid } from 'lucide-react';
+import { Plus, Trash2, LayoutGrid, Undo2, Redo2, X } from 'lucide-react';
 import { theme } from '../../theme';
 import { dslToVCM, vcmToReactFlow, vcmToDSL, reactFlowToVCM } from '../../utils/vcmAdapter';
-import { autoLayout } from '../../utils/layoutEngine';
 import { useVCMHistory } from '../../hooks/useVCMHistory';
+import { useEditorKeyboardShortcuts } from '../../hooks/useEditorKeyboardShortcuts';
+import { customNodeTypes } from '../DiagramNodes';
+import { VisualEditorEngine } from '../editors/VisualEditorEngine';
+import { MermaidNodeEditor } from '../editors/MermaidNodeEditor'; // Reuse Mermaid editor for now since shapes overlap
+import { GraphvizEdgeEditor } from '../editors/GraphvizEdgeEditor';
+import { EditorStatusBar } from '../editors/EditorStatusBar';
 
 interface GraphvizCanvasEditorProps {
   code: string;
@@ -46,51 +52,28 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
   const { fitView } = useReactFlow();
 
   const vcmRef = useRef<any>(null);
+  const engineRef = useRef<VisualEditorEngine | null>(null);
   const codeDrivenGenRef = useRef(0);
   const lastCodeRef = useRef(code);
+  const addingNodeRef = useRef(false);
   const history = useVCMHistory();
 
-  const handleAddNode = useCallback(() => {
-    if (!vcmRef.current) return;
+  // Selection state for editors
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
-    const index = vcmRef.current.nodes.length;
-    const updated = {
-      ...vcmRef.current,
-      nodes: [
-        ...vcmRef.current.nodes,
-        {
-          id: `n${Date.now()}`,
-          label: `Node ${index + 1}`,
-          shape: 'roundedRect',
-          position: { x: 140 + index * 40, y: 120 + index * 40 },
-          ports: [],
-        },
-      ],
-      version: (vcmRef.current.version || 0) + 1,
-    };
-
-    vcmRef.current = updated;
-    history.push(updated);
-    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
-    setNodes(rfNodes);
-    setEdges(rfEdges);
-    emitCode(updated, true);
-    requestAnimationFrame(() => fitView({ padding: 0.25, duration: 200 }));
-  }, [fitView, history]);
+  // Initialize engine on mount
+  useEffect(() => {
+    engineRef.current = new VisualEditorEngine({ history, language: 'graphviz' });
+  }, [history]);
 
   function handleInlineNodeLabelChange(nodeId: string, newLabel: string) {
-    if (!vcmRef.current) return;
+    if (!vcmRef.current || !engineRef.current) return;
 
-    const updated = {
-      ...vcmRef.current,
-      nodes: vcmRef.current.nodes.map((node: any) =>
-        node.id === nodeId ? { ...node, label: newLabel } : node
-      ),
-      version: (vcmRef.current.version || 0) + 1,
-    };
-
+    const updated = engineRef.current.updateNodeLabel(vcmRef.current, nodeId, newLabel);
     vcmRef.current = updated;
-    history.push(updated);
+    engineRef.current.recordState(updated);
+
     const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
     setNodes(rfNodes);
     setEdges(rfEdges);
@@ -100,10 +83,11 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
   // ── Code → VCM → React Flow sync ───────────────────────────────────────
 
   useEffect(() => {
-    if (code === lastCodeRef.current && nodes.length > 0) return undefined;
-    lastCodeRef.current = code;
+    const currentCode = code.trim();
+    if (currentCode === lastCodeRef.current && nodes.length > 0) return undefined;
+    lastCodeRef.current = currentCode;
 
-    if (!code.trim()) {
+    if (!currentCode) {
       vcmRef.current = null;
       setNodes([]);
       setEdges([]);
@@ -113,7 +97,12 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
     const gen = ++codeDrivenGenRef.current;
 
     try {
-      const vcm = dslToVCM(code, 'graphviz');
+      let vcm = dslToVCM(currentCode, 'graphviz');
+      
+      // Automatically layout the diagram right after parsing to ensure readable routing
+      if (engineRef.current) {
+        vcm = engineRef.current.autoLayoutDiagram(vcm, vcm.direction || 'TB');
+      }
       
       const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(vcm, handleInlineNodeLabelChange);
       
@@ -123,7 +112,6 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
       history.push(vcm);
       
       // Fit view after React Flow has fully rendered nodes and calculated their dimensions
-      // Use multiple frames to account for async React state updates and DOM layout
       const fitTimer = setTimeout(() => {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -144,9 +132,11 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
       };
     } catch (error) {
       console.error('[Graphviz Editor] Parse error:', error);
+      setNodes([]);
+      setEdges([]);
       return undefined;
     }
-  }, [code, setNodes, setEdges, fitView]);
+  }, [code, setNodes, setEdges, fitView, history]);
 
   // ── VCM → DSL serialization ─────────────────────────────────────────────
 
@@ -160,18 +150,136 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
     }
   }, [onCodeChange]);
 
-  // ── Handle node/edge changes ────────────────────────────────────────────
+  // ── Toolbar Actions ────────────────────────────────────────────────────
+
+  const handleAddNode = useCallback(() => {
+    if (!vcmRef.current || !engineRef.current) return;
+
+    addingNodeRef.current = true;
+    try {
+      const position = {
+        x: 120 + nodes.length * 30,
+        y: 120 + nodes.length * 30,
+      };
+
+      let updated = engineRef.current.addNode(vcmRef.current, {
+        x: position.x,
+        y: position.y,
+        shape: 'ellipse', // Dot typical default
+        label: 'New Node',
+      });
+
+      vcmRef.current = updated;
+      engineRef.current.recordState(updated);
+      const createdNodeId = updated.nodes[updated.nodes.length - 1]?.id;
+
+      const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+      setNodes(rfNodes);
+      setEdges(rfEdges);
+      if (createdNodeId) {
+        setSelectedNodeId(createdNodeId);
+        setSelectedEdgeId(null);
+      }
+      requestAnimationFrame(() => fitView({ padding: 0.25, duration: 200 }));
+      emitCode(updated, true);
+    } finally {
+      addingNodeRef.current = false;
+    }
+  }, [nodes, emitCode, setNodes, setEdges, fitView]);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!vcmRef.current || !engineRef.current) return;
+
+    const updated = engineRef.current.deleteSelected(vcmRef.current);
+    if (updated === vcmRef.current) return; // Nothing was selected
+
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges);
+    emitCode(updated, true);
+  }, [emitCode, setNodes, setEdges]);
+
+  const handleAutoLayout = useCallback(() => {
+    if (!vcmRef.current || !engineRef.current) return;
+
+    const updated = engineRef.current.autoLayoutDiagram(vcmRef.current, 'TB');
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges); // DAGRE might adjust edges/points
+    requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }));
+    emitCode(updated, true);
+  }, [emitCode, setNodes, setEdges, fitView]);
+
+  const handleUndo = useCallback(() => {
+    if (!engineRef.current) return;
+
+    const previous = engineRef.current.undo();
+    if (!previous) return;
+
+    vcmRef.current = previous;
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(previous, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges);
+    emitCode(previous, true);
+  }, [emitCode, setNodes, setEdges]);
+
+  const handleRedo = useCallback(() => {
+    if (!engineRef.current) return;
+
+    const next = engineRef.current.redo();
+    if (!next) return;
+
+    vcmRef.current = next;
+    const { nodes: rfNodes, edges: rfEdges } = vcmToReactFlow(next, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    setEdges(rfEdges);
+    emitCode(next, true);
+  }, [emitCode, setNodes, setEdges]);
+
+  useEditorKeyboardShortcuts({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onDeleteSelected: handleDeleteSelected,
+    onAddNode: handleAddNode,
+  });
+
+  useOnSelectionChange({
+    onChange: ({ nodes: selectedNodes, edges: selectedEdges }) => {
+      if (engineRef.current) {
+        engineRef.current.setSelection(
+          selectedNodes.map((n) => n.id),
+          selectedEdges.map((e) => e.id)
+        );
+        if (selectedNodes.length === 1) {
+          setSelectedNodeId(selectedNodes[0].id);
+          setSelectedEdgeId(null);
+        } else if (selectedEdges.length === 1) {
+          setSelectedEdgeId(selectedEdges[0].id);
+          setSelectedNodeId(null);
+        } else {
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+        }
+      }
+    },
+  });
 
   const handleNodesChange = useCallback(
     (changes: any) => {
       const nextNodes = applyNodeChanges(changes, nodes);
       onNodesChange(changes);
-      if (vcmRef.current) {
-        const updated = reactFlowToVCM(nextNodes, edges, vcmRef.current);
-        vcmRef.current = updated;
-        history.push(updated);
-        emitCode(updated, true);
-      }
+      if (!vcmRef.current || addingNodeRef.current) return;
+
+      const updated = reactFlowToVCM(nextNodes, edges, vcmRef.current);
+      vcmRef.current = updated;
+      history.push(updated);
+      emitCode(updated, true);
     },
     [nodes, edges, onNodesChange, emitCode, history]
   );
@@ -180,98 +288,278 @@ const GraphvizCanvasEditorInner: React.FC<GraphvizCanvasEditorProps> = ({ code, 
     (changes: any) => {
       const nextEdges = applyEdgeChanges(changes, edges);
       onEdgesChange(changes);
-      if (vcmRef.current) {
-        const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
-        vcmRef.current = updated;
-        emitCode(updated, true);
-      }
+      if (!vcmRef.current) return;
+
+      const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
+      vcmRef.current = updated;
+      history.push(updated);
+      emitCode(updated, true);
     },
-    [nodes, edges, onEdgesChange, emitCode]
+    [nodes, edges, onEdgesChange, emitCode, history]
   );
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      const nextEdges = rfAddEdge(connection, edges);
-      setEdges(nextEdges);
-      if (vcmRef.current) {
-        const updated = reactFlowToVCM(nodes, nextEdges, vcmRef.current);
+      const edge = rfAddEdge(connection, edges);
+      setEdges(edge);
+      if (vcmRef.current && engineRef.current) {
+        const updated = engineRef.current.addEdge(vcmRef.current, {
+          source: connection.source!,
+          target: connection.target!,
+        });
         vcmRef.current = updated;
+        engineRef.current.recordState(updated);
         emitCode(updated, true);
       }
     },
-    [edges, setEdges, nodes, emitCode]
+    [edges, setEdges, emitCode]
   );
 
-  const handleAutoLayout = useCallback(() => {
-    if (vcmRef.current) {
-      const layouted = autoLayout(vcmRef.current, { direction: 'TB' });
-      const { nodes: rfNodes } = vcmToReactFlow(layouted, handleInlineNodeLabelChange);
-      setNodes(rfNodes);
-      requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }));
-    }
-  }, [setNodes, fitView]);
+  // ── Graphviz-specific Editing (Reusing Mermaid Editors) ───────────────────
+
+  const handleNodeLabelChange = useCallback((newLabel: string) => {
+    if (!vcmRef.current || !engineRef.current || !selectedNodeId) return;
+
+    let updated = engineRef.current.updateNodeLabel(vcmRef.current, selectedNodeId, newLabel);
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { nodes: rfNodes } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    emitCode(updated, true);
+  }, [selectedNodeId, emitCode, setNodes]);
+
+  const handleNodeShapeChange = useCallback((newShape: any) => {
+    if (!vcmRef.current || !engineRef.current || !selectedNodeId) return;
+
+    let updated = engineRef.current.updateNodeShape(vcmRef.current, selectedNodeId, newShape);
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { nodes: rfNodes } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setNodes(rfNodes);
+    emitCode(updated, true);
+  }, [selectedNodeId, emitCode, setNodes]);
+
+  const handleEdgeLabelChange = useCallback((newLabel: string) => {
+    if (!vcmRef.current || !engineRef.current || !selectedEdgeId) return;
+
+    let updated = engineRef.current.updateEdgeLabel(vcmRef.current, selectedEdgeId, newLabel);
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setEdges(rfEdges);
+    emitCode(updated, true);
+  }, [selectedEdgeId, emitCode, setEdges]);
+
+  const handleEdgeDirectionChange = useCallback((direction: 'forward' | 'back' | 'both' | 'none') => {
+    if (!vcmRef.current || !engineRef.current || !selectedEdgeId) return;
+
+    let updated = engineRef.current.updateEdgeDirection(vcmRef.current, selectedEdgeId, direction);
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setEdges(rfEdges);
+    emitCode(updated, true);
+  }, [selectedEdgeId, emitCode, setEdges]);
+
+  const handleEdgeDelete = useCallback(() => {
+    if (!vcmRef.current || !engineRef.current || !selectedEdgeId) return;
+
+    let updated = engineRef.current.deleteEdge(vcmRef.current, selectedEdgeId);
+    vcmRef.current = updated;
+    engineRef.current.recordState(updated);
+
+    const { edges: rfEdges } = vcmToReactFlow(updated, handleInlineNodeLabelChange);
+    setEdges(rfEdges);
+    setSelectedEdgeId(null);
+    emitCode(updated, true);
+  }, [selectedEdgeId, emitCode, setEdges]);
+
+  const selectedNode = selectedNodeId && vcmRef.current
+    ? vcmRef.current.nodes.find((n: any) => n.id === selectedNodeId)
+    : null;
+
+  const selectedEdge = selectedEdgeId && vcmRef.current
+    ? vcmRef.current.edges.find((e: any) => e.id === selectedEdgeId)
+    : null;
 
   return (
-    <div className="w-full h-full">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
-        onConnect={handleConnect}
-        fitView
-      >
-        <Background variant={BackgroundVariant.Dots} />
-        <Controls />
-        <MiniMap />
-
-        {/* Graphviz-specific toolbar */}
-        <Panel position="top-left">
-          <div
-            className="flex gap-2 p-3 rounded-lg backdrop-blur-sm"
-            style={{ backgroundColor: `${theme.colors.bg.secondary}99` }}
+    <div className="w-full h-full flex gap-3 flex-col">
+      <div className="flex-1 flex gap-3 min-h-0">
+        <div className="flex-1">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={handleEdgesChange}
+            onConnect={handleConnect}
+            nodeTypes={customNodeTypes}
+            proOptions={{ hideAttribution: true }}
+            fitView
           >
-            <button
-              onClick={handleAddNode}
-              className="p-2 rounded text-sm flex items-center gap-2"
-              style={{
-                backgroundColor: theme.colors.bg.tertiary,
-                color: theme.colors.accent.primary,
-                border: `1px solid ${theme.colors.border.medium}`,
-              }}
-              title="Add Node"
-            >
-              <Plus size={16} />
-              Node
-            </button>
-            <button
-              onClick={handleAutoLayout}
-              className="p-2 rounded text-sm flex items-center gap-2"
-              style={{
-                backgroundColor: theme.colors.bg.tertiary,
-                color: theme.colors.accent.primary,
-                border: `1px solid ${theme.colors.border.medium}`,
-              }}
-              title="Auto-layout with Graphviz algorithm"
-            >
-              <LayoutGrid size={16} />
-              Layout
-            </button>
-          </div>
-        </Panel>
+            <Background variant={BackgroundVariant.Dots} />
+            <Controls />
+            <MiniMap />
 
-        <Panel position="bottom-left">
+            {/* Graphviz-specific toolbar */}
+            <Panel position="top-left">
+              <div
+                className="flex gap-2 p-3 rounded-lg backdrop-blur-sm"
+                style={{ backgroundColor: `${theme.colors.bg.secondary}99` }}
+              >
+                <button
+                  onClick={handleAddNode}
+                  className="p-2 rounded text-sm flex items-center gap-2 hover:opacity-80 transition"
+                  style={{
+                    backgroundColor: theme.colors.bg.tertiary,
+                    color: theme.colors.accent.primary,
+                    border: `1px solid ${theme.colors.border.medium}`,
+                  }}
+                  title="Add Node (Ctrl+N)"
+                >
+                  <Plus size={16} />
+                  Node
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  className="p-2 rounded text-sm flex items-center gap-2 hover:opacity-80 transition"
+                  style={{
+                    backgroundColor: theme.colors.bg.tertiary,
+                    color: theme.colors.accent.primary,
+                    border: `1px solid ${theme.colors.border.medium}`,
+                  }}
+                  title="Delete Selected (Del)"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+                <button
+                  onClick={handleAutoLayout}
+                  className="p-2 rounded text-sm flex items-center gap-2 hover:opacity-80 transition"
+                  style={{
+                    backgroundColor: theme.colors.bg.tertiary,
+                    color: theme.colors.accent.primary,
+                    border: `1px solid ${theme.colors.border.medium}`,
+                  }}
+                  title="Auto-layout diagram"
+                >
+                  <LayoutGrid size={16} />
+                  Layout
+                </button>
+
+                <div style={{ width: '1px', backgroundColor: theme.colors.border.medium, opacity: 0.3 }} />
+
+                <button
+                  onClick={handleUndo}
+                  disabled={!engineRef.current?.canUndo()}
+                  className="p-2 rounded text-sm flex items-center gap-2 hover:opacity-80 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: theme.colors.bg.tertiary,
+                    color: theme.colors.accent.primary,
+                    border: `1px solid ${theme.colors.border.medium}`,
+                  }}
+                  title="Undo (Ctrl+Z)"
+                >
+                  <Undo2 size={16} />
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={!engineRef.current?.canRedo()}
+                  className="p-2 rounded text-sm flex items-center gap-2 hover:opacity-80 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: theme.colors.bg.tertiary,
+                    color: theme.colors.accent.primary,
+                    border: `1px solid ${theme.colors.border.medium}`,
+                  }}
+                  title="Redo (Ctrl+Shift+Z)"
+                >
+                  <Redo2 size={16} />
+                </button>
+              </div>
+            </Panel>
+
+            {/* Moved helper text to bottom center so it does not overlap controls */}
+            <Panel position="bottom-center">
+              <div
+                className="text-xs p-2 rounded mb-4"
+                style={{
+                  backgroundColor: `${theme.colors.bg.secondary}99`,
+                  color: theme.colors.text.tertiary,
+                }}
+              >
+                💡 Graphviz (DOT): Directed/Undirected Graphs, Node Styling, Subgraphs
+              </div>
+            </Panel>
+          </ReactFlow>
+        </div>
+
+        {/* Right sidebar: Node/Edge Editor */}
+        {(selectedNode || selectedEdge) && vcmRef.current && (
           <div
-            className="text-xs p-2 rounded"
+            className="w-80 rounded-lg border overflow-hidden flex flex-col"
             style={{
-              backgroundColor: `${theme.colors.bg.secondary}99`,
-              color: theme.colors.text.tertiary,
+              backgroundColor: theme.colors.bg.secondary,
+              borderColor: theme.colors.border.medium,
             }}
           >
-            💡 Graphviz (DOT): Directed/Undirected Graphs, Node Styling, Subgraphs
+            <div
+              className="flex items-center justify-between p-3 border-b"
+              style={{ borderColor: theme.colors.border.medium }}
+            >
+              <span className="font-semibold text-sm" style={{ color: theme.colors.text.primary }}>
+                {selectedNode ? 'Edit Node' : 'Edit Connection'}
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedNodeId(null);
+                  setSelectedEdgeId(null);
+                }}
+                className="p-1 hover:opacity-80 transition"
+                style={{ color: theme.colors.text.tertiary }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto">
+              {selectedNode && (
+                <MermaidNodeEditor
+                  nodeId={selectedNode.id}
+                  label={selectedNode.label}
+                  shape={selectedNode.shape}
+                  onLabelChange={handleNodeLabelChange}
+                  onShapeChange={handleNodeShapeChange}
+                />
+              )}
+              {selectedEdge && (
+                <GraphvizEdgeEditor
+                  edgeId={selectedEdge.id}
+                  source={selectedEdge.sourceNodeId}
+                  target={selectedEdge.targetNodeId}
+                  label={selectedEdge.label}
+                  sourceArrow={selectedEdge.sourceArrow}
+                  targetArrow={selectedEdge.targetArrow}
+                  onLabelChange={handleEdgeLabelChange}
+                  onDirectionChange={handleEdgeDirectionChange}
+                  onDelete={handleEdgeDelete}
+                />
+              )}
+            </div>
           </div>
-        </Panel>
-      </ReactFlow>
+        )}
+      </div>
+
+      <EditorStatusBar
+        nodeCount={vcmRef.current?.nodes?.length || 0}
+        edgeCount={vcmRef.current?.edges?.length || 0}
+        selectedNodeCount={Array.from(engineRef.current?.getSelection().selectedNodeIds || []).length}
+        selectedEdgeCount={Array.from(engineRef.current?.getSelection().selectedEdgeIds || []).length}
+        canUndo={engineRef.current?.canUndo() || false}
+        canRedo={engineRef.current?.canRedo() || false}
+      />
     </div>
   );
 };
