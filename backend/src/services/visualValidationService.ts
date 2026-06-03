@@ -11,6 +11,8 @@
 
 import 'dotenv/config';
 import axios from 'axios';
+import { checkGeminiHealth } from './geminiService.js';
+import { checkGroqHealth } from './groqService.js';
 
 // ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -28,6 +30,12 @@ const VLM_TIMEOUT = parseInt(process.env.VLM_TIMEOUT || '120000', 10);
 // granite3.2-vision:2b is small enough to co-reside with most models.
 const VLM_EVICT_CODER = process.env.VLM_EVICT_CODER === 'true';
 const MODEL_CHECK_TIMEOUT = parseInt(process.env.VLM_MODEL_CHECK_TIMEOUT || '5000', 10);
+const USE_GEMINI_VISION =
+  ((process.env.AI_PROVIDER || '').toLowerCase() === 'gemini' && Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) ||
+  /^gemini-/i.test(process.env.GEMINI_VISION_MODEL || '');
+const USE_GROQ_VISION =
+  ((process.env.AI_PROVIDER || '').toLowerCase() === 'groq' && Boolean(process.env.GROQ_API_KEY)) ||
+  /^(meta-llama\/llama-4-|openai\/gpt-oss-|qwen\/qwen3-)/i.test(process.env.GROQ_VISION_MODEL || '');
 
 /**
  * Evict a model from VRAM by sending a generate request with keep_alive: 0.
@@ -305,6 +313,18 @@ export async function checkVLMHealth(): Promise<{
   model: string;
   models: string[];
 }> {
+  if (USE_GROQ_VISION) {
+    const model = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+    const available = await checkGroqHealth(model);
+    return { available, model, models: [model] };
+  }
+
+  if (USE_GEMINI_VISION) {
+    const model = process.env.GEMINI_VISION_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const available = await checkGeminiHealth(model);
+    return { available, model, models: [model] };
+  }
+
   try {
     const response = await axios.get(`${OLLAMA_BASE_URL}/api/tags`, {
       timeout: 5000,

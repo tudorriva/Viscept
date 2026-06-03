@@ -12,13 +12,17 @@
  *   This avoids VRAM contention on GPUs with ≤4GB.
  */
 
-import { generateWithOllama, modifyDiagramWithOllama, OllamaResponse } from './ollamaService.js';
+import { OllamaResponse } from './ollamaService.js';
 import { renderDiagramToImage, RenderResult } from './renderingService.js';
 import {
-  validateDiagramVisually,
   buildCorrectionPrompt,
   ValidationResult,
 } from './visualValidationService.js';
+import {
+  generateDiagramWithAI,
+  modifyDiagramWithAI,
+  validateDiagramVisuallyWithAI,
+} from './aiRoutingService.js';
 
 // ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -89,6 +93,8 @@ export async function runPipeline(
     enableValidation = true,
     maxRetries = MAX_RETRIES,
     baseCode,
+    model,
+    vlmModel,
   } = options;
 
   const history: PipelineAttempt[] = [];
@@ -113,10 +119,16 @@ export async function runPipeline(
     try {
       if (currentBaseCode && i === 0) {
         // First attempt of a modification
-        generated = await modifyDiagramWithOllama(currentBaseCode, currentPrompt, diagramType);
+        generated = await modifyDiagramWithAI(currentBaseCode, currentPrompt, diagramType, {
+          model,
+          visionModel: vlmModel,
+        });
       } else {
         // Standard generation or correction retry
-        generated = await generateWithOllama(currentPrompt, diagramType);
+        generated = await generateDiagramWithAI(currentPrompt, diagramType, {
+          model,
+          visionModel: vlmModel,
+        });
       }
     } catch (error) {
       console.error(`[Pipeline] AI call failed on attempt ${attempts}:`, error);
@@ -196,12 +208,16 @@ INSTRUCTIONS:
 
     let validation: ValidationResult;
     try {
-      validation = await validateDiagramVisually({
-        imageBase64: renderResult.imageBase64,
+      validation = await validateDiagramVisuallyWithAI(
+        renderResult.imageBase64,
         diagramType,
-        originalPrompt: prompt,
-        diagramCode: bestCode,
-      });
+        prompt,
+        bestCode,
+        {
+          model,
+          visionModel: vlmModel,
+        },
+      );
     } catch (error) {
       console.warn(`[Pipeline] Validation failed on attempt ${attempts}:`, error);
       history.push({
@@ -268,7 +284,8 @@ INSTRUCTIONS:
 export async function validateExistingDiagram(
   code: string,
   diagramType: string,
-  originalPrompt: string
+  originalPrompt: string,
+  options: PipelineOptions = {},
 ): Promise<ValidationResult> {
   try {
     // Render
@@ -278,12 +295,16 @@ export async function validateExistingDiagram(
     await sleep(COOLDOWN_MS);
 
     // Validate
-    const validation = await validateDiagramVisually({
-      imageBase64: renderResult.imageBase64,
+    const validation = await validateDiagramVisuallyWithAI(
+      renderResult.imageBase64,
       diagramType,
       originalPrompt,
-      diagramCode: code,
-    });
+      code,
+      {
+        model: options.model,
+        visionModel: options.vlmModel,
+      },
+    );
 
     return validation;
   } catch (error) {

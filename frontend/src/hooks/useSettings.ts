@@ -23,7 +23,7 @@ export interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   model: 'viscept',
-  visionModel: 'granite3.2-vision:2b',
+  visionModel: 'viscept',
   temperature: 0.3,
   maxTokens: 2048,
   fontSize: 13,
@@ -53,6 +53,9 @@ export const useSettings = () => {
         const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } as Settings;
         if (!parsed.model || parsed.model === 'qwen2.5-coder:7b' || parsed.model === 'llama3.2') {
           parsed.model = 'viscept';
+        }
+        if (!parsed.visionModel) {
+          parsed.visionModel = 'viscept';
         }
         return parsed;
       }

@@ -6,7 +6,7 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import diagramRoutes from './routes/diagramRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
-import { checkOllamaHealth, getModelConfig } from './services/ollamaService.js';
+import { checkPrimaryAIHealth, getAvailableModelInfo } from './services/aiRoutingService.js';
 import { checkVLMHealth } from './services/visualValidationService.js';
 
 const app: Express = express();
@@ -35,15 +35,15 @@ app.get('/api/health', async (req, res) => {
     return;
   }
 
-  const ollamaOnline = await checkOllamaHealth();
+  const primaryAIOnline = await checkPrimaryAIHealth();
   const vlm = await checkVLMHealth();
-  const config = getModelConfig();
+  const { config } = await getAvailableModelInfo();
 
   const payload = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     ollama: {
-      online: ollamaOnline,
+      online: primaryAIOnline,
       generativeModel: config.generativeModel,
       visionModel: config.visionModel,
     },

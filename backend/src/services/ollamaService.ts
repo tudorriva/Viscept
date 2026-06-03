@@ -268,7 +268,8 @@ function extractCodeFromResponse(response: string, diagramType: string): string 
  */
 export async function generateWithOllama(
   prompt: string,
-  diagramType: string
+  diagramType: string,
+  model = OLLAMA_MODEL,
 ): Promise<OllamaResponse> {
   if (process.env.NODE_ENV === 'test') {
     return getFallbackTemplate(diagramType);
@@ -283,7 +284,7 @@ export async function generateWithOllama(
     const response = await axios.post(
       OLLAMA_URL,
       {
-        model: OLLAMA_MODEL,
+        model,
         prompt: userMessage,
         system: systemPrompt,
         stream: false,
@@ -330,6 +331,7 @@ export async function correctWithOllama(
   diagramType: string,
   renderError: string,
   originalPrompt?: string,
+  model = OLLAMA_MODEL,
 ): Promise<OllamaResponse> {
   const systemPrompt = buildSystemPrompt(diagramType);
   const userMessage = [
@@ -352,7 +354,7 @@ export async function correctWithOllama(
     const response = await axios.post(
       OLLAMA_URL,
       {
-        model: OLLAMA_MODEL,
+        model,
         prompt: userMessage,
         system: systemPrompt,
         stream: false,
@@ -511,6 +513,7 @@ export async function modifyDiagramWithOllama(
   currentCode: string,
   userRequest: string,
   diagramType: string,
+  model = OLLAMA_MODEL,
 ): Promise<OllamaResponse> {
   const systemPrompt = buildModificationSystemPrompt(diagramType);
   const userMessage = [
@@ -529,7 +532,7 @@ export async function modifyDiagramWithOllama(
     const response = await axios.post(
       OLLAMA_URL,
       {
-        model: OLLAMA_MODEL,
+        model,
         prompt: userMessage,
         system: systemPrompt,
         stream: false,
@@ -592,6 +595,7 @@ export function detectExplicitDiagramLanguage(prompt: string): DiagramLanguage |
  */
 export async function classifyDiagramTypeWithOllama(
   prompt: string,
+  model = OLLAMA_MODEL,
 ): Promise<string> {
   const explicitLanguage = detectExplicitDiagramLanguage(prompt);
   if (explicitLanguage) {
@@ -616,7 +620,7 @@ No explanations. JSON only.`;
     const response = await axios.post(
       OLLAMA_URL,
       {
-        model: OLLAMA_MODEL,
+        model,
         prompt: `Classify the diagram type for: ${prompt}`,
         system: systemPrompt,
         stream: false,

@@ -28,6 +28,8 @@ export interface GenerateRequest {
   diagramType: 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
   enableValidation?: boolean;
   maxRetries?: number;
+  model?: string;
+  visionModel?: string;
 }
 
 export interface ValidationResult {
@@ -61,6 +63,8 @@ export interface ValidateRequest {
   code: string;
   diagramType: 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
   originalPrompt?: string;
+  model?: string;
+  visionModel?: string;
 }
 
 export interface RenderRequest {
@@ -153,6 +157,8 @@ export interface CorrectRequest {
   diagramType: 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
   renderError: string;
   originalPrompt?: string;
+  model?: string;
+  visionModel?: string;
 }
 
 /**
@@ -231,8 +237,11 @@ export interface ClassifyResponse {
 /**
  * Auto-classify the best diagram type for a user prompt.
  */
-export async function classifyDiagramType(prompt: string): Promise<'mermaid' | 'dbml' | 'graphviz' | 'plantuml'> {
-  const response = await client.post<ClassifyResponse>('/api/classify', { prompt });
+export async function classifyDiagramType(
+  prompt: string,
+  model?: string,
+): Promise<'mermaid' | 'dbml' | 'graphviz' | 'plantuml'> {
+  const response = await client.post<ClassifyResponse>('/api/classify', { prompt, model });
   return response.data.diagramType;
 }
 

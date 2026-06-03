@@ -27,8 +27,13 @@ export const App: React.FC = () => {
   const previewRef = useRef<HTMLDivElement>(null);
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
-  const chat = useChat();
   const { settings, updateSetting } = useSettings();
+  const chat = useChat({
+    model: settings.model,
+    visionModel: settings.visionModel,
+    autoValidation: settings.autoValidation,
+    maxValidationRetries: settings.maxValidationRetries,
+  });
   const { examplesOpen, setExamplesOpen } = useUIStore();
 
   // Derived state
@@ -106,6 +111,8 @@ export const App: React.FC = () => {
         code,
         diagramType,
         originalPrompt: firstUser?.content ?? 'User diagram',
+        model: settings.model,
+        visionModel: settings.visionModel,
       });
       chat.updateValidationResult(result);
     } catch {
@@ -113,7 +120,7 @@ export const App: React.FC = () => {
     } finally {
       setIsValidating(false);
     }
-  }, [code, diagramType, messages, chat]);
+  }, [code, diagramType, messages, chat, settings.model, settings.visionModel]);
 
   const handleFix = useCallback(async () => {
     const validationResult = chat.validationResult;
@@ -164,6 +171,8 @@ export const App: React.FC = () => {
           diagramType,
           renderError: errorMsg,
           originalPrompt: firstUser?.content ?? 'User diagram',
+          model: settings.model,
+          visionModel: settings.visionModel,
         });
 
         if (corrected.code) {
@@ -176,7 +185,7 @@ export const App: React.FC = () => {
         setIsAutoCorrecting(false);
       }
     },
-    [code, diagramType, chat, messages, isAutoCorrecting],
+    [code, diagramType, chat, messages, isAutoCorrecting, settings.model, settings.visionModel],
   );
 
   // ── Settings adapter (typed → generic for SettingsDialog) ────────────────

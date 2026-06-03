@@ -3,24 +3,35 @@
  */
 
 import { Request, Response } from 'express';
-import { generateWithOllama, correctWithOllama, modifyDiagramWithOllama, classifyDiagramTypeWithOllama, getModelConfig, listOllamaModels, checkOllamaHealth } from '../services/ollamaService.js';
 import { formatCode as formatCodeService } from '../services/formatterService.js';
 import { getDemoData as getDemoDataService } from '../services/demoService.js';
 import { runPipeline, validateExistingDiagram, PipelineResult } from '../services/pipelineService.js';
 import { checkVLMHealth } from '../services/visualValidationService.js';
 import { checkRenderingCapabilities, renderDiagramToSvg } from '../services/renderingService.js';
+import {
+  generateDiagramWithAI,
+  modifyDiagramWithAI,
+  correctDiagramWithAI,
+  classifyDiagramTypeWithAI,
+  getAvailableModelInfo,
+  checkPrimaryAIHealth,
+} from '../services/aiRoutingService.js';
 
 interface GenerateRequest {
   prompt: string;
   diagramType: string;
   enableValidation?: boolean;
   maxRetries?: number;
+  model?: string;
+  visionModel?: string;
 }
 
 interface ValidateRequest {
   code: string;
   diagramType: string;
   originalPrompt: string;
+  model?: string;
+  visionModel?: string;
 }
 
 interface CorrectRequest {
@@ -28,6 +39,8 @@ interface CorrectRequest {
   diagramType: string;
   renderError: string;
   originalPrompt?: string;
+  model?: string;
+  visionModel?: string;
 }
 
 interface FormatRequest {
@@ -47,7 +60,7 @@ interface RenderRequest {
  * Optionally runs the full self-correction pipeline with visual validation.
  */
 export async function generateDiagram(req: Request, res: Response): Promise<void> {
-  const { prompt, diagramType, enableValidation = false, maxRetries } = req.body as GenerateRequest;
+  const { prompt, diagramType, enableValidation = false, maxRetries, model, visionModel } = req.body as GenerateRequest;
 
   console.log('[Controller] Request body:', JSON.stringify(req.body));
 
@@ -78,6 +91,8 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
       const result = await runPipeline(prompt, diagramType, {
         enableValidation: true,
         maxRetries: maxRetries ?? 2,
+        model,
+        vlmModel: visionModel,
       });
 
       res.json({
@@ -90,7 +105,10 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
       });
     } else {
       // Standard generation (no visual validation)
-      const result = await generateWithOllama(prompt, diagramType);
+      const result = await generateDiagramWithAI(prompt, diagramType, {
+        model,
+        visionModel,
+      });
       res.json(result);
     }
   } catch (error) {
@@ -107,7 +125,7 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
  * Sends the original code + error to the AI to fix syntax issues.
  */
 export async function correctDiagram(req: Request, res: Response): Promise<void> {
-  const { code, diagramType, renderError, originalPrompt } = req.body as CorrectRequest;
+  const { code, diagramType, renderError, originalPrompt, model, visionModel } = req.body as CorrectRequest;
 
   if (!code || typeof code !== 'string') {
     res.status(400).json({ error: 'code is required and must be a string' });
@@ -131,7 +149,10 @@ export async function correctDiagram(req: Request, res: Response): Promise<void>
   try {
     console.log(`[Controller] Correcting ${diagramType} diagram (error: "${renderError.substring(0, 80)}...")`);
 
-    const result = await correctWithOllama(code, diagramType, renderError, originalPrompt);
+    const result = await correctDiagramWithAI(code, diagramType, renderError, originalPrompt, {
+      model,
+      visionModel,
+    });
     res.json(result);
   } catch (error) {
     console.error('[Controller] Error in correctDiagram:', error);
@@ -147,7 +168,7 @@ export async function correctDiagram(req: Request, res: Response): Promise<void>
  * Renders the code to an image and sends it to the VLM for inspection.
  */
 export async function validateDiagram(req: Request, res: Response): Promise<void> {
-  const { code, diagramType, originalPrompt } = req.body as ValidateRequest;
+  const { code, diagramType, originalPrompt, model, visionModel } = req.body as ValidateRequest;
 
   if (!code || typeof code !== 'string') {
     res.status(400).json({ error: 'code is required and must be a string' });
@@ -173,7 +194,11 @@ export async function validateDiagram(req: Request, res: Response): Promise<void
     const result = await validateExistingDiagram(
       code,
       diagramType,
-      originalPrompt || 'User diagram'
+      originalPrompt || 'User diagram',
+      {
+        model,
+        vlmModel: visionModel,
+      },
     );
 
     res.json(result);
@@ -230,16 +255,15 @@ export async function renderDiagram(req: Request, res: Response): Promise<void> 
  */
 export async function getModels(_req: Request, res: Response): Promise<void> {
   try {
-    const config = getModelConfig();
-    const models = await listOllamaModels();
+    const { config, availableModels } = await getAvailableModelInfo();
     const vlmHealth = await checkVLMHealth();
-    const ollamaHealthy = await checkOllamaHealth();
+    const primaryHealthy = await checkPrimaryAIHealth();
     const renderCaps = await checkRenderingCapabilities();
 
     res.json({
       config,
-      availableModels: models,
-      ollamaOnline: ollamaHealthy,
+      availableModels,
+      ollamaOnline: primaryHealthy,
       vlm: vlmHealth,
       renderingCapabilities: renderCaps,
       timestamp: new Date().toISOString(),
@@ -322,6 +346,8 @@ interface ChatMessageRequest {
   isFirstMessage: boolean;
   enableValidation?: boolean;
   maxRetries?: number;
+  model?: string;
+  visionModel?: string;
 }
 
 /**
@@ -339,6 +365,8 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
     isFirstMessage,
     enableValidation = false,
     maxRetries,
+    model,
+    visionModel,
   } = req.body as ChatMessageRequest;
 
   if (!chatId || typeof chatId !== 'string') {
@@ -373,6 +401,8 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
         enableValidation: true,
         maxRetries: maxRetries ?? 2,
         baseCode: isFirstMessage ? undefined : currentDiagramCode,
+        model,
+        vlmModel: visionModel,
       });
       
       code = result.code;
@@ -395,17 +425,24 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
       // ── Standard Generation (no pipeline) ────────────────────────────────
       console.log(`[Controller] Chat ${chatId}: first message, generating ${diagramType} diagram`);
 
-      const genResult = await generateWithOllama(message, diagramType);
+      const genResult = await generateDiagramWithAI(message, diagramType, {
+        model,
+        visionModel,
+      });
       code = genResult.code;
       assistantMessage = 'Here is your diagram. You can ask me to add, remove, or change any part of it.';
     } else {
       // ── Standard Modification (no pipeline) ──────────────────────────────
       console.log(`[Controller] Chat ${chatId}: modifying ${diagramType} diagram`);
 
-      const modResult = await modifyDiagramWithOllama(
+      const modResult = await modifyDiagramWithAI(
         currentDiagramCode,
         message,
         diagramType,
+        {
+          model,
+          visionModel,
+        },
       );
       code = modResult.code;
       assistantMessage = 'I\'ve updated the diagram based on your request.';
@@ -428,13 +465,14 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
 
 interface ClassifyRequest {
   prompt: string;
+  model?: string;
 }
 
 /**
  * POST /api/classify - Auto-detect the best diagram type for a user prompt.
  */
 export async function handleClassifyDiagramType(req: Request, res: Response): Promise<void> {
-  const { prompt } = req.body as ClassifyRequest;
+  const { prompt, model } = req.body as ClassifyRequest;
 
   if (!prompt || typeof prompt !== 'string') {
     res.status(400).json({ error: 'prompt is required' });
@@ -443,7 +481,7 @@ export async function handleClassifyDiagramType(req: Request, res: Response): Pr
 
   try {
     console.log(`[Controller] Classifying diagram type for: "${prompt.substring(0, 60)}..."`);
-    const diagramType = await classifyDiagramTypeWithOllama(prompt);
+    const diagramType = await classifyDiagramTypeWithAI(prompt, { model });
 
     res.json({
       diagramType,

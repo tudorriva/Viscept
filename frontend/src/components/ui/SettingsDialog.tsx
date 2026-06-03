@@ -247,23 +247,23 @@ const AITab: React.FC<{ settings: Record<string, unknown>; onChange: (k: string,
     <Row label="Generation Model" description="Primary model for diagram generation">
       <StyledSelect
         value={(settings.model as string) ?? 'viscept'}
-        options={['viscept', 'qwen2.5-coder:7b', 'deepseek-coder:6.7b', 'codestral:22b', 'mistral:7b']}
+        options={['viscept', 'openai/gpt-oss-120b', 'qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'gemini-2.5-flash', 'qwen2.5-coder:7b', 'mistral:7b']}
         onChange={(v) => onChange('model', v)}
       />
     </Row>
     <SepRow />
     <Row label="Vision Model" description="Model for diagram validation">
       <StyledSelect
-        value={(settings.visionModel as string) ?? 'granite3.2-vision:2b'}
-        options={['granite3.2-vision:2b']}
+        value={(settings.visionModel as string) ?? 'viscept'}
+        options={['viscept', 'meta-llama/llama-4-scout-17b-16e-instruct', 'gemini-2.5-flash', 'granite3.2-vision:2b']}
         onChange={(v) => onChange('visionModel', v)}
       />
     </Row>
     <SepRow />
     <Row label="Auto-validate" description="Validate diagram after each generation">
       <Toggle
-        value={(settings.autoValidate as boolean) ?? true}
-        onChange={(v) => onChange('autoValidate', v)}
+        value={(settings.autoValidation as boolean) ?? true}
+        onChange={(v) => onChange('autoValidation', v)}
       />
     </Row>
     <SepRow />

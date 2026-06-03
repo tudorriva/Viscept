@@ -60,7 +60,14 @@ export interface UseChatReturn {
   validationResult: ValidationResult | null;
 }
 
-export function useChat(): UseChatReturn {
+interface UseChatOptions {
+  model: string;
+  visionModel: string;
+  autoValidation?: boolean;
+  maxValidationRetries?: number;
+}
+
+export function useChat(options: UseChatOptions): UseChatReturn {
   const [chatList, setChatList] = useState<ChatSessionMeta[]>([]);
   const [activeChat, setActiveChat] = useState<ChatSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -184,7 +191,7 @@ export function useChat(): UseChatReturn {
         let diagramType = session.diagramType;
         if (!diagramType) {
           try {
-            const classified = await classifyDiagramType(content);
+            const classified = await classifyDiagramType(content, options.model);
             diagramType = classified;
           } catch {
             diagramType = 'mermaid'; // fallback
@@ -207,16 +214,22 @@ export function useChat(): UseChatReturn {
           setGenerationPhase('fixing', 'Taking longer than usual... double-checking syntax.');
         }, 15000);
 
-        const response = await sendChatMessage({
-          chatId: session.id,
-          message: content,
-          diagramType: diagramType!,
-          currentDiagramCode: isFirstMessage ? undefined : session.currentDiagramCode,
-          isFirstMessage,
-          enableValidation: true, // Enable the self-correction pipeline
-        });
-
-        clearTimeout(longWaitTimer);
+        let response;
+        try {
+          response = await sendChatMessage({
+            chatId: session.id,
+            message: content,
+            diagramType: diagramType!,
+            currentDiagramCode: isFirstMessage ? undefined : session.currentDiagramCode,
+            isFirstMessage,
+            enableValidation: options.autoValidation ?? true,
+            maxRetries: options.maxValidationRetries ?? 2,
+            model: options.model,
+            visionModel: options.visionModel,
+          });
+        } finally {
+          clearTimeout(longWaitTimer);
+        }
 
         // 5. Append assistant message
         const assistantMsg = createChatMessage(
@@ -248,7 +261,7 @@ export function useChat(): UseChatReturn {
         setIsLoading(false);
       }
     },
-    [createChat, refreshList, setGenerationPhase, resetGeneration],
+    [createChat, options.autoValidation, options.maxValidationRetries, options.model, options.visionModel, refreshList, setGenerationPhase, resetGeneration],
   );
 
   // ── Regenerate last response ────────────────────────────────────────────
