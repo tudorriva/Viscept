@@ -242,46 +242,111 @@ const StyledSelect: React.FC<{ value: string; options: string[]; onChange: (v: s
 
 const AITab: React.FC<{ settings: Record<string, unknown>; onChange: (k: string, v: unknown) => void }> = ({
   settings, onChange,
-}) => (
-  <div className="space-y-0.5">
-    <Row label="Generation Model" description="Primary model for diagram generation">
-      <StyledSelect
-        value={(settings.model as string) ?? 'viscept'}
-        options={['viscept', 'openai/gpt-oss-120b', 'qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'gemini-2.5-flash', 'qwen2.5-coder:7b', 'mistral:7b']}
-        onChange={(v) => onChange('model', v)}
-      />
-    </Row>
-    <SepRow />
-    <Row label="Vision Model" description="Model for diagram validation">
-      <StyledSelect
-        value={(settings.visionModel as string) ?? 'viscept'}
-        options={['viscept', 'meta-llama/llama-4-scout-17b-16e-instruct', 'gemini-2.5-flash', 'granite3.2-vision:2b']}
-        onChange={(v) => onChange('visionModel', v)}
-      />
-    </Row>
-    <SepRow />
-    <Row label="Auto-validate" description="Validate diagram after each generation">
-      <Toggle
-        value={(settings.autoValidation as boolean) ?? true}
-        onChange={(v) => onChange('autoValidation', v)}
-      />
-    </Row>
-    <SepRow />
-    <Row label="Auto-fix" description="Automatically attempt to fix validation errors">
-      <Toggle
-        value={(settings.autoFix as boolean) ?? false}
-        onChange={(v) => onChange('autoFix', v)}
-      />
-    </Row>
-    <SepRow />
-    <Row label="Streaming" description="Stream output token-by-token">
-      <Toggle
-        value={(settings.streamOutput as boolean) ?? true}
-        onChange={(v) => onChange('streamOutput', v)}
-      />
-    </Row>
-  </div>
-);
+}) => {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const obliqueRelay = (settings.obliqueRelay as boolean) ?? true;
+  const generationValue = obliqueRelay
+    ? ((settings.remoteModel as string) ?? 'openai/gpt-oss-120b')
+    : ((settings.model as string) ?? 'qwen2.5-coder:7b');
+  const visionValue = obliqueRelay
+    ? ((settings.remoteVisionModel as string) ?? 'meta-llama/llama-4-scout-17b-16e-instruct')
+    : ((settings.visionModel as string) ?? 'granite3.2-vision:2b');
+  const generationOptions = obliqueRelay
+    ? ['openai/gpt-oss-120b', 'qwen/qwen3-32b', 'llama-3.3-70b-versatile']
+    : ['qwen2.5-coder:7b', 'mistral:7b', 'codellama:7b'];
+  const visionOptions = obliqueRelay
+    ? ['meta-llama/llama-4-scout-17b-16e-instruct']
+    : ['granite3.2-vision:2b'];
+
+  return (
+    <div className="space-y-0.5">
+      <Row label="Generation Model" description="Primary model for diagram generation">
+        <StyledSelect
+          value={generationValue}
+          options={generationOptions}
+          onChange={(v) => onChange(obliqueRelay ? 'remoteModel' : 'model', v)}
+        />
+      </Row>
+      <SepRow />
+      <Row label="Vision Model" description="Model for diagram validation">
+        <StyledSelect
+          value={visionValue}
+          options={visionOptions}
+          onChange={(v) => onChange(obliqueRelay ? 'remoteVisionModel' : 'visionModel', v)}
+        />
+      </Row>
+      <SepRow />
+      <Row label="Auto-validate" description="Validate diagram after each generation">
+        <Toggle
+          value={obliqueRelay ? true : ((settings.autoValidation as boolean) ?? true)}
+          onChange={(v) => onChange('autoValidation', v)}
+        />
+      </Row>
+      <SepRow />
+      <Row label="Auto-fix" description="Automatically attempt to fix validation errors">
+        <Toggle
+          value={(settings.autoFix as boolean) ?? false}
+          onChange={(v) => onChange('autoFix', v)}
+        />
+      </Row>
+      <SepRow />
+      <Row label="Streaming" description="Stream output token-by-token">
+        <Toggle
+          value={(settings.streamOutput as boolean) ?? true}
+          onChange={(v) => onChange('streamOutput', v)}
+        />
+      </Row>
+      <SepRow />
+      <button
+        type="button"
+        onClick={() => setAdvancedOpen((open) => !open)}
+        className="w-full flex items-center justify-between px-1 py-2 text-left"
+      >
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+            Runtime Internals
+          </p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Low-level routing controls
+          </p>
+        </div>
+        <motion.span
+          animate={{ rotate: advancedOpen ? 180 : 0 }}
+          transition={{ duration: 0.18 }}
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <ChevronDown size={14} />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {advancedOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden"
+          >
+            <div
+              className="rounded-xl px-3"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <Row label="Oblique Relay" description="Routes inference through the cloud for Viscept model for better performance and compatibility">
+                <Toggle
+                  value={obliqueRelay}
+                  onChange={(v) => onChange('obliqueRelay', v)}
+                />
+              </Row>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const AppearanceTab: React.FC<{ settings: Record<string, unknown>; onChange: (k: string, v: unknown) => void }> = ({
   settings, onChange,

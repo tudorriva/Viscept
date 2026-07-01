@@ -2,7 +2,7 @@
  * Gemini service - handles communication with Google AI Studio / Gemini API.
  */
 
-import 'dotenv/config';
+import '../env.js';
 import { GoogleGenAI } from '@google/genai';
 
 export type DiagramLanguage = 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';

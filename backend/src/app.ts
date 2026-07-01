@@ -10,6 +10,9 @@ import { checkPrimaryAIHealth, getAvailableModelInfo } from './services/aiRoutin
 import { checkVLMHealth } from './services/visualValidationService.js';
 
 const app: Express = express();
+const HEALTH_CACHE_TTL_MS = (process.env.AI_PROVIDER || '').toLowerCase() === 'groq'
+  ? 30 * 60 * 1000
+  : 15_000;
 
 // Middleware
 app.use(cors());
@@ -24,8 +27,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Health check cache (15 s) — avoids hammering Ollama on every browser poll
+// ── Health check cache — avoids hammering providers on every browser poll
 let healthCache: { result: Record<string, unknown>; expiresAt: number } | null = null;
+let healthInFlight: Promise<Record<string, unknown>> | null = null;
 
 // Health check endpoint with system capabilities
 app.get('/api/health', async (req, res) => {
@@ -35,29 +39,37 @@ app.get('/api/health', async (req, res) => {
     return;
   }
 
-  const primaryAIOnline = await checkPrimaryAIHealth();
-  const vlm = await checkVLMHealth();
-  const { config } = await getAvailableModelInfo();
+  if (!healthInFlight) {
+    healthInFlight = (async () => {
+      const primaryAIOnline = await checkPrimaryAIHealth();
+      const vlm = await checkVLMHealth();
+      const { config } = await getAvailableModelInfo();
 
-  const payload = {
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    ollama: {
-      online: primaryAIOnline,
-      generativeModel: config.generativeModel,
-      visionModel: config.visionModel,
-    },
-    vlm: {
-      available: vlm.available,
-      model: vlm.model,
-    },
-    pipeline: {
-      maxRetries: config.maxValidationRetries,
-    },
-  };
+      const payload = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        ollama: {
+          online: primaryAIOnline,
+          generativeModel: config.generativeModel,
+          visionModel: config.visionModel,
+        },
+        vlm: {
+          available: vlm.available,
+          model: vlm.model,
+        },
+        pipeline: {
+          maxRetries: config.maxValidationRetries,
+        },
+      };
 
-  healthCache = { result: payload, expiresAt: Date.now() + 15_000 };
-  res.json(payload);
+      healthCache = { result: payload, expiresAt: Date.now() + HEALTH_CACHE_TTL_MS };
+      return payload;
+    })().finally(() => {
+      healthInFlight = null;
+    });
+  }
+
+  res.json(await healthInFlight);
 });
 
 // API Routes

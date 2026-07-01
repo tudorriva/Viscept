@@ -22,6 +22,7 @@ import {
   setCurrentChatId,
 } from '../utils/chatStorage';
 import { sendChatMessage, classifyDiagramType } from '../utils/api';
+import { estimateGenerationTimeSeconds, getSimulatedDurationMs } from '../utils/generationTiming';
 
 import { useUIStore } from '../store/uiStore';
 
@@ -65,6 +66,7 @@ interface UseChatOptions {
   visionModel: string;
   autoValidation?: boolean;
   maxValidationRetries?: number;
+  useRemotePath?: boolean;
 }
 
 export function useChat(options: UseChatOptions): UseChatReturn {
@@ -74,10 +76,45 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   const [error, setError] = useState<string | null>(null);
   const setGenerationPhase = useUIStore((s) => s.setGenerationPhase);
   const resetGeneration = useUIStore((s) => s.resetGeneration);
+  const phaseTimersRef = useRef<number[]>([]);
 
   // Ref to avoid stale closures in async callbacks
   const activeChatRef = useRef<ChatSession | null>(null);
   activeChatRef.current = activeChat;
+
+  const clearPhaseTimers = useCallback(() => {
+    phaseTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    phaseTimersRef.current = [];
+  }, []);
+
+  const scheduleRemotePhaseTimeline = useCallback((
+    totalDurationMs: number,
+    withValidation: boolean,
+  ) => {
+    clearPhaseTimers();
+
+    if (totalDurationMs <= 0) {
+      return;
+    }
+
+    const checkpoints = withValidation
+      ? [
+        { phase: 'rendering' as const, progress: 0.7, message: 'Compiling structure into a visual graph...' },
+        { phase: 'validating' as const, progress: 0.84, message: 'Running visual consistency checks...' },
+        { phase: 'fixing' as const, progress: 0.93, message: 'Refining weak spots before release...' },
+      ]
+      : [
+        { phase: 'rendering' as const, progress: 0.82, message: 'Compiling structure into a visual graph...' },
+      ];
+
+    phaseTimersRef.current = checkpoints.map(({ phase, progress, message }) =>
+      window.setTimeout(() => {
+        setGenerationPhase(phase, message);
+      }, Math.max(1000, Math.round(totalDurationMs * progress))),
+    );
+  }, [clearPhaseTimers, setGenerationPhase]);
+
+  useEffect(() => () => clearPhaseTimers(), [clearPhaseTimers]);
 
   // ── Load chat list + restore last session on mount ──────────────────────
 
@@ -208,13 +245,21 @@ export function useChat(options: UseChatOptions): UseChatReturn {
 
         // 4. Call backend chat endpoint
         const isFirstMessage = session.messages.filter((m) => m.role === 'user').length === 1;
-        
-        // Timeout for "taking longer than usual"
-        const longWaitTimer = setTimeout(() => {
-          setGenerationPhase('fixing', 'Taking longer than usual... double-checking syntax.');
-        }, 15000);
-
         let response;
+        const minimumDurationMs = options.useRemotePath
+          ? getSimulatedDurationMs(estimateGenerationTimeSeconds(content, diagramType || 'mermaid'))
+          : undefined;
+        if (options.useRemotePath && minimumDurationMs) {
+          scheduleRemotePhaseTimeline(
+            minimumDurationMs,
+            (options.autoValidation ?? true),
+          );
+        }
+
+        const longWaitTimer = window.setTimeout(() => {
+          setGenerationPhase('fixing', 'Taking longer than usual... double-checking syntax.');
+        }, Math.max(15000, Math.round((minimumDurationMs ?? 0) * 0.96) || 15000));
+
         try {
           response = await sendChatMessage({
             chatId: session.id,
@@ -226,17 +271,23 @@ export function useChat(options: UseChatOptions): UseChatReturn {
             maxRetries: options.maxValidationRetries ?? 2,
             model: options.model,
             visionModel: options.visionModel,
+            minimumDurationMs,
           });
         } finally {
-          clearTimeout(longWaitTimer);
+          window.clearTimeout(longWaitTimer);
+          clearPhaseTimers();
         }
+
+        const responseValidation = response.validation
+          ? { ...response.validation, attempts: response.attempts }
+          : null;
 
         // 5. Append assistant message
         const assistantMsg = createChatMessage(
           'assistant',
           response.message || 'Diagram updated.',
           response.code,
-          response.validation ?? null,
+          responseValidation,
         );
 
         session = {
@@ -244,7 +295,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
           messages: [...session.messages, assistantMsg],
           currentDiagramCode: response.code,
           diagramType: (response.language as DiagramType) || diagramType,
-          currentValidation: response.validation ?? null,
+          currentValidation: responseValidation,
           updatedAt: new Date().toISOString(),
         };
 
@@ -261,7 +312,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
         setIsLoading(false);
       }
     },
-    [createChat, options.autoValidation, options.maxValidationRetries, options.model, options.visionModel, refreshList, setGenerationPhase, resetGeneration],
+    [createChat, options.autoValidation, options.maxValidationRetries, options.model, options.visionModel, options.useRemotePath, refreshList, setGenerationPhase, resetGeneration, scheduleRemotePhaseTimeline, clearPhaseTimers],
   );
 
   // ── Regenerate last response ────────────────────────────────────────────

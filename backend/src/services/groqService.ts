@@ -2,7 +2,7 @@
  * Groq service - handles communication with Groq's OpenAI-compatible API.
  */
 
-import 'dotenv/config';
+import '../env.js';
 import axios from 'axios';
 
 export interface GroqResponse {
@@ -25,6 +25,7 @@ const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const GROQ_TIMEOUT = parseInt(process.env.GROQ_TIMEOUT || '300000', 10);
 const GROQ_MODIFY_TIMEOUT = parseInt(process.env.GROQ_MODIFY_TIMEOUT || '300000', 10);
+const GROQ_MIN_RESPONSE_MS = parseInt(process.env.GROQ_MIN_RESPONSE_MS || '1800', 10);
 const MAX_OUTPUT_LENGTH = parseInt(process.env.MAX_OUTPUT_LENGTH || '15000', 10);
 
 const DEFAULT_GROQ_MODEL_CANDIDATES = [
@@ -41,9 +42,26 @@ const DEFAULT_GROQ_VISION_MODEL_CANDIDATES = [
   'meta-llama/llama-4-scout-17b-16e-instruct',
 ];
 const GROQ_DEBUG = process.env.GROQ_DEBUG === 'true' || process.env.AI_DEBUG === 'true';
+const GROQ_HEALTH_CACHE_MS = parseInt(process.env.GROQ_HEALTH_CACHE_MS || String(30 * 60 * 1000), 10);
+const groqHealthCache = new Map<string, { value: boolean; expiresAt: number }>();
 
 function supportsReasoningEffort(model: string): boolean {
   return /^(openai\/gpt-oss-|qwen\/qwen3-)/i.test(model);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForMinimumDuration(startedAt: number, minMs: number): Promise<void> {
+  if (minMs <= 0) {
+    return;
+  }
+
+  const elapsed = Date.now() - startedAt;
+  if (elapsed < minMs) {
+    await sleep(minMs - elapsed);
+  }
 }
 
 function assertGroqConfigured(): void {
@@ -223,10 +241,12 @@ async function createGroqChatCompletion(args: {
   timeoutMs: number;
   responseFormat?: Record<string, unknown>;
   reasoningEffort?: 'low' | 'medium' | 'high';
+  minimumDurationMs?: number;
 }) {
   assertGroqConfigured();
 
   let lastError: unknown;
+  const startedAt = Date.now();
 
   for (const model of args.modelCandidates) {
     try {
@@ -262,6 +282,8 @@ async function createGroqChatCompletion(args: {
           },
         },
       );
+
+      await waitForMinimumDuration(startedAt, args.minimumDurationMs ?? 0);
 
       return {
         model,
@@ -321,6 +343,7 @@ export async function generateWithGroq(
     temperature: 0.2,
     timeoutMs: GROQ_TIMEOUT,
     reasoningEffort: 'medium',
+    minimumDurationMs: GROQ_MIN_RESPONSE_MS,
   });
 
   return {
@@ -356,6 +379,7 @@ export async function modifyDiagramWithGroq(
     temperature: 0.15,
     timeoutMs: GROQ_MODIFY_TIMEOUT,
     reasoningEffort: 'medium',
+    minimumDurationMs: GROQ_MIN_RESPONSE_MS,
   });
 
   return {
@@ -396,6 +420,7 @@ export async function correctWithGroq(
     temperature: 0.1,
     timeoutMs: GROQ_TIMEOUT,
     reasoningEffort: 'medium',
+    minimumDurationMs: GROQ_MIN_RESPONSE_MS,
   });
 
   return {
@@ -444,6 +469,7 @@ export async function classifyDiagramTypeWithGroq(
       },
     },
     reasoningEffort: 'low',
+    minimumDurationMs: GROQ_MIN_RESPONSE_MS,
   });
 
   const parsed = parseJsonObject<{ diagramType?: string }>(completion.text);
@@ -518,6 +544,7 @@ export async function validateDiagramVisuallyWithGroq(
       },
     },
     reasoningEffort: 'low',
+    minimumDurationMs: GROQ_MIN_RESPONSE_MS,
   });
 
   const parsed = parseJsonObject<{
@@ -541,6 +568,13 @@ export async function checkGroqHealth(model?: string): Promise<boolean> {
     return false;
   }
 
+  const cacheKey = model || GROQ_MODEL;
+  const cached = groqHealthCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now < cached.expiresAt) {
+    return cached.value;
+  }
+
   try {
     await createGroqChatCompletion({
       modelCandidates: resolveModelCandidates(model),
@@ -551,9 +585,18 @@ export async function checkGroqHealth(model?: string): Promise<boolean> {
       temperature: 0,
       timeoutMs: 15000,
       reasoningEffort: 'low',
+      minimumDurationMs: 0,
+    });
+    groqHealthCache.set(cacheKey, {
+      value: true,
+      expiresAt: now + GROQ_HEALTH_CACHE_MS,
     });
     return true;
   } catch {
+    groqHealthCache.set(cacheKey, {
+      value: false,
+      expiresAt: now + Math.min(GROQ_HEALTH_CACHE_MS, 5 * 60 * 1000),
+    });
     return false;
   }
 }

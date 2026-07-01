@@ -12,6 +12,7 @@ export interface ChatValidationResult {
   confidence: number;
   suggestions: string[];
   timestamp: string;
+  attempts?: number;
 }
 
 /** A single message in a chat conversation. */

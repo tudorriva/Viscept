@@ -23,6 +23,14 @@ const client: AxiosInstance = axios.create({
   },
 });
 
+function getExtendedTimeoutConfig(minimumDurationMs?: number) {
+  if (typeof minimumDurationMs === 'number' && minimumDurationMs > 0) {
+    return { timeout: 0 };
+  }
+
+  return undefined;
+}
+
 export interface GenerateRequest {
   prompt: string;
   diagramType: 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
@@ -30,6 +38,7 @@ export interface GenerateRequest {
   maxRetries?: number;
   model?: string;
   visionModel?: string;
+  minimumDurationMs?: number;
 }
 
 export interface ValidationResult {
@@ -38,6 +47,7 @@ export interface ValidationResult {
   confidence: number;
   suggestions: string[];
   timestamp: string;
+  attempts?: number;
 }
 
 export interface PipelineAttempt {
@@ -65,6 +75,7 @@ export interface ValidateRequest {
   originalPrompt?: string;
   model?: string;
   visionModel?: string;
+  minimumDurationMs?: number;
 }
 
 export interface RenderRequest {
@@ -148,7 +159,11 @@ export interface HealthResponse {
  * Loop (Generate → Render → Inspect → Correct).
  */
 export async function generateDiagram(req: GenerateRequest): Promise<GenerateResponse> {
-  const response = await client.post<GenerateResponse>('/api/generate', req);
+  const response = await client.post<GenerateResponse>(
+    '/api/generate',
+    req,
+    getExtendedTimeoutConfig(req.minimumDurationMs),
+  );
   return response.data;
 }
 
@@ -159,13 +174,18 @@ export interface CorrectRequest {
   originalPrompt?: string;
   model?: string;
   visionModel?: string;
+  minimumDurationMs?: number;
 }
 
 /**
  * Send diagram code + render error to the AI for correction.
  */
 export async function correctDiagram(req: CorrectRequest): Promise<GenerateResponse> {
-  const response = await client.post<GenerateResponse>('/api/correct', req);
+  const response = await client.post<GenerateResponse>(
+    '/api/correct',
+    req,
+    getExtendedTimeoutConfig(req.minimumDurationMs),
+  );
   return response.data;
 }
 
@@ -173,7 +193,11 @@ export async function correctDiagram(req: CorrectRequest): Promise<GenerateRespo
  * Validate existing diagram code visually using the VLM.
  */
 export async function validateDiagram(req: ValidateRequest): Promise<ValidationResult> {
-  const response = await client.post<ValidationResult>('/api/validate', req);
+  const response = await client.post<ValidationResult>(
+    '/api/validate',
+    req,
+    getExtendedTimeoutConfig(req.minimumDurationMs),
+  );
   return response.data;
 }
 
@@ -210,6 +234,7 @@ export interface ChatMessageRequest {
   maxRetries?: number;
   model?: string; // AI generative model selection
   visionModel?: string; // AI vision model for validation
+  minimumDurationMs?: number;
 }
 
 export interface ChatMessageResponse {
@@ -225,7 +250,11 @@ export interface ChatMessageResponse {
  * Send a chat message and receive updated diagram code.
  */
 export async function sendChatMessage(req: ChatMessageRequest): Promise<ChatMessageResponse> {
-  const response = await client.post<ChatMessageResponse>('/api/chat/message', req);
+  const response = await client.post<ChatMessageResponse>(
+    '/api/chat/message',
+    req,
+    getExtendedTimeoutConfig(req.minimumDurationMs),
+  );
   return response.data;
 }
 

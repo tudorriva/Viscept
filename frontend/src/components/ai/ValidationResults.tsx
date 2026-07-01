@@ -94,6 +94,12 @@ export const ValidationResults: React.FC<ValidationResultsProps> = ({
                     {validation.reason}
                   </p>
 
+                  {typeof validation.attempts === 'number' && validation.attempts > 1 && (
+                    <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                      Stabilized after {validation.attempts} passes
+                    </p>
+                  )}
+
                   {/* Suggestions */}
                   {validation.suggestions.length > 0 && (
                     <div>

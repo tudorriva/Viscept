@@ -9,7 +9,7 @@
  * paper: Generate → Render → Inspect → Auto-Correct.
  */
 
-import 'dotenv/config';
+import '../env.js';
 import axios from 'axios';
 import { checkGeminiHealth } from './geminiService.js';
 import { checkGroqHealth } from './groqService.js';

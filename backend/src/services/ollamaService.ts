@@ -2,7 +2,7 @@
  * Ollama service - handles communication with local Ollama endpoint.
  */
 
-import 'dotenv/config'; // Ensure env vars are loaded before module-level constants
+import '../env.js'; // Ensure env vars are loaded before module-level constants
 import axios from 'axios';
 
 export type DiagramLanguage = 'mermaid' | 'plantuml' | 'dbml' | 'graphviz';
@@ -569,21 +569,51 @@ export async function modifyDiagramWithOllama(
 
 export function detectExplicitDiagramLanguage(prompt: string): DiagramLanguage | null {
   const text = prompt.toLowerCase();
+  const scores: Record<DiagramLanguage, number> = {
+    mermaid: 0,
+    plantuml: 0,
+    dbml: 0,
+    graphviz: 0,
+  };
 
-  if (/(?:^|[^a-z0-9])@startuml(?:[^a-z0-9]|$)|(?:^|[^a-z0-9])@enduml(?:[^a-z0-9]|$)|\bplant\s*uml\b|\bpuml\b|\bsequence\s+diagram\s+in\s+plantuml\b/.test(text)) {
-    return 'plantuml';
+  const addScore = (language: DiagramLanguage, regex: RegExp, weight: number) => {
+    if (regex.test(text)) {
+      scores[language] += weight;
+    }
+  };
+
+  // Strong directive signals
+  addScore('mermaid', /\bmermaid\b/, 5);
+  addScore('mermaid', /\bmermaid\s+(?:flowchart|diagram|syntax|code)\b/, 8);
+  addScore('mermaid', /\bflowchart\s+(?:td|tb|lr|rl|bt)\b/, 10);
+  addScore('mermaid', /\b(classdiagram|sequencediagram|erdiagram|statediagram(?:-v2)?)\b/, 8);
+  addScore('mermaid', /\buse\s+mermaid\b|\boutput\s+only\s+valid\s+mermaid\b|\bdo\s+not\s+wrap.*mermaid\b/s, 10);
+
+  addScore('plantuml', /(?:^|[^a-z0-9])@startuml(?:[^a-z0-9]|$)|(?:^|[^a-z0-9])@enduml(?:[^a-z0-9]|$)/, 12);
+  addScore('plantuml', /\bplant\s*uml\b|\bpuml\b/, 4);
+  addScore('plantuml', /\b(?:in|use|with|output)\s+plant\s*uml\b|\bplant\s*uml\s+syntax\b/, 9);
+
+  addScore('dbml', /\bdbml\b/, 8);
+  addScore('dbml', /\b(?:in|use|with|output)\s+dbml\b|\bdbml\s+syntax\b/, 10);
+  addScore('dbml', /\btable\s+\w+\s*\{/, 9);
+
+  addScore('graphviz', /\bgraphviz(?:\s+dot)?\b/, 7);
+  addScore('graphviz', /\bdot\s+(?:diagram|graph|language|syntax)\b|\bdiagram\s+in\s+dot\b/, 9);
+  addScore('graphviz', /\bdigraph\b|\bstrict\s+digraph\b/, 10);
+
+  const ranked = Object.entries(scores)
+    .filter(([, score]) => score > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (ranked.length === 0) {
+    return null;
   }
 
-  if (/\bmermaid\b/.test(text)) {
-    return 'mermaid';
-  }
+  const [winner, winnerScore] = ranked[0] as [DiagramLanguage, number];
+  const runnerUpScore = ranked[1]?.[1] ?? 0;
 
-  if (/\bgraphviz(?:\s+dot)?\b|\bdot\s+(?:diagram|graph|language)\b|\bdiagram\s+in\s+dot\b/.test(text)) {
-    return 'graphviz';
-  }
-
-  if (/\bdbml\b/.test(text)) {
-    return 'dbml';
+  if (winnerScore >= 8 || winnerScore - runnerUpScore >= 3) {
+    return winner;
   }
 
   return null;

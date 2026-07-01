@@ -1,8 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 
 export interface Settings {
+  obliqueRelay: boolean;
   model: string;
   visionModel: string;
+  remoteModel: string;
+  remoteVisionModel: string;
   temperature: number;
   maxTokens: number;
   fontSize: number;
@@ -22,8 +25,11 @@ export interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
+  obliqueRelay: true,
   model: 'viscept',
   visionModel: 'viscept',
+  remoteModel: 'openai/gpt-oss-120b',
+  remoteVisionModel: 'meta-llama/llama-4-scout-17b-16e-instruct',
   temperature: 0.3,
   maxTokens: 2048,
   fontSize: 13,
@@ -56,6 +62,12 @@ export const useSettings = () => {
         }
         if (!parsed.visionModel) {
           parsed.visionModel = 'viscept';
+        }
+        if (!parsed.remoteModel) {
+          parsed.remoteModel = DEFAULT_SETTINGS.remoteModel;
+        }
+        if (!parsed.remoteVisionModel) {
+          parsed.remoteVisionModel = DEFAULT_SETTINGS.remoteVisionModel;
         }
         return parsed;
       }

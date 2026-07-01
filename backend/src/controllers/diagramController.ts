@@ -24,6 +24,7 @@ interface GenerateRequest {
   maxRetries?: number;
   model?: string;
   visionModel?: string;
+  minimumDurationMs?: number;
 }
 
 interface ValidateRequest {
@@ -32,6 +33,7 @@ interface ValidateRequest {
   originalPrompt: string;
   model?: string;
   visionModel?: string;
+  minimumDurationMs?: number;
 }
 
 interface CorrectRequest {
@@ -41,6 +43,7 @@ interface CorrectRequest {
   originalPrompt?: string;
   model?: string;
   visionModel?: string;
+  minimumDurationMs?: number;
 }
 
 interface FormatRequest {
@@ -55,12 +58,41 @@ interface RenderRequest {
   themeMode?: 'dark' | 'paper' | 'transparent';
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeMinimumDurationMs(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return clamp(Math.round(value), 0, 15 * 60 * 1000);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForMinimumDuration(startedAt: number, minimumDurationMs: number): Promise<void> {
+  if (minimumDurationMs <= 0) {
+    return;
+  }
+
+  const elapsed = Date.now() - startedAt;
+  if (elapsed < minimumDurationMs) {
+    await sleep(minimumDurationMs - elapsed);
+  }
+}
+
 /**
  * POST /api/generate - Generate diagram code from a prompt.
  * Optionally runs the full self-correction pipeline with visual validation.
  */
 export async function generateDiagram(req: Request, res: Response): Promise<void> {
-  const { prompt, diagramType, enableValidation = false, maxRetries, model, visionModel } = req.body as GenerateRequest;
+  const startedAt = Date.now();
+  const { prompt, diagramType, enableValidation = false, maxRetries, model, visionModel, minimumDurationMs } = req.body as GenerateRequest;
+  const requestedMinimumDurationMs = sanitizeMinimumDurationMs(minimumDurationMs);
 
   console.log('[Controller] Request body:', JSON.stringify(req.body));
 
@@ -95,6 +127,8 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
         vlmModel: visionModel,
       });
 
+      await waitForMinimumDuration(startedAt, requestedMinimumDurationMs);
+
       res.json({
         code: result.code,
         language: result.language,
@@ -109,6 +143,7 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
         model,
         visionModel,
       });
+      await waitForMinimumDuration(startedAt, requestedMinimumDurationMs);
       res.json(result);
     }
   } catch (error) {
@@ -125,7 +160,9 @@ export async function generateDiagram(req: Request, res: Response): Promise<void
  * Sends the original code + error to the AI to fix syntax issues.
  */
 export async function correctDiagram(req: Request, res: Response): Promise<void> {
-  const { code, diagramType, renderError, originalPrompt, model, visionModel } = req.body as CorrectRequest;
+  const startedAt = Date.now();
+  const { code, diagramType, renderError, originalPrompt, model, visionModel, minimumDurationMs } = req.body as CorrectRequest;
+  const requestedMinimumDurationMs = sanitizeMinimumDurationMs(minimumDurationMs);
 
   if (!code || typeof code !== 'string') {
     res.status(400).json({ error: 'code is required and must be a string' });
@@ -153,6 +190,7 @@ export async function correctDiagram(req: Request, res: Response): Promise<void>
       model,
       visionModel,
     });
+    await waitForMinimumDuration(startedAt, requestedMinimumDurationMs);
     res.json(result);
   } catch (error) {
     console.error('[Controller] Error in correctDiagram:', error);
@@ -168,7 +206,9 @@ export async function correctDiagram(req: Request, res: Response): Promise<void>
  * Renders the code to an image and sends it to the VLM for inspection.
  */
 export async function validateDiagram(req: Request, res: Response): Promise<void> {
-  const { code, diagramType, originalPrompt, model, visionModel } = req.body as ValidateRequest;
+  const startedAt = Date.now();
+  const { code, diagramType, originalPrompt, model, visionModel, minimumDurationMs } = req.body as ValidateRequest;
+  const requestedMinimumDurationMs = sanitizeMinimumDurationMs(minimumDurationMs);
 
   if (!code || typeof code !== 'string') {
     res.status(400).json({ error: 'code is required and must be a string' });
@@ -201,6 +241,7 @@ export async function validateDiagram(req: Request, res: Response): Promise<void
       },
     );
 
+    await waitForMinimumDuration(startedAt, requestedMinimumDurationMs);
     res.json(result);
   } catch (error) {
     console.error('[Controller] Error in validateDiagram:', error);
@@ -348,6 +389,7 @@ interface ChatMessageRequest {
   maxRetries?: number;
   model?: string;
   visionModel?: string;
+  minimumDurationMs?: number;
 }
 
 /**
@@ -357,6 +399,7 @@ interface ChatMessageRequest {
  * Follow-ups     → modifies the existing diagram based on the instruction.
  */
 export async function handleChatMessage(req: Request, res: Response): Promise<void> {
+  const startedAt = Date.now();
   const {
     chatId,
     message,
@@ -367,7 +410,9 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
     maxRetries,
     model,
     visionModel,
+    minimumDurationMs,
   } = req.body as ChatMessageRequest;
+  const requestedMinimumDurationMs = sanitizeMinimumDurationMs(minimumDurationMs);
 
   if (!chatId || typeof chatId !== 'string') {
     res.status(400).json({ error: 'chatId is required' });
@@ -410,6 +455,7 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
         ? 'Here is your diagram. Feel free to ask me to modify it.'
         : 'I\'ve updated the diagram based on your request.';
 
+      await waitForMinimumDuration(startedAt, requestedMinimumDurationMs);
       res.json({
         code,
         message: assistantMessage,
@@ -448,6 +494,7 @@ export async function handleChatMessage(req: Request, res: Response): Promise<vo
       assistantMessage = 'I\'ve updated the diagram based on your request.';
     }
 
+    await waitForMinimumDuration(startedAt, requestedMinimumDurationMs);
     res.json({
       code,
       message: assistantMessage,

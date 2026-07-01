@@ -1,10 +1,10 @@
 /**
  * Main server entry point.
- * NOTE: dotenv/config MUST be the first import so that process.env is populated
+ * NOTE: env.ts MUST be the first import so that process.env is populated
  * before any other module reads environment variables at the top level.
  */
 
-import 'dotenv/config';
+import './env.js';
 import app from './app.js';
 
 const PORT = process.env.PORT || 3001;

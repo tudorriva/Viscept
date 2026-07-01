@@ -4,6 +4,7 @@ import { Eye, AlertCircle, Loader, Pencil, Monitor, ZoomIn, ZoomOut, Maximize } 
 import { theme } from '../theme';
 import { DiagramEditor } from './DiagramEditor';
 import { renderDiagram } from '../utils/api';
+import { estimateGenerationTimeSeconds } from '../utils/generationTiming';
 
 interface DiagramPreviewProps {
   code: string;
@@ -22,23 +23,6 @@ interface DiagramPreviewProps {
    * a parent that already provides its own tab/toggle (e.g. CenterWorkspace).
    */
   hideToggle?: boolean;
-}
-
-/** Estimate generation time in seconds based on prompt length and language complexity.
- *  Accounts for local Ollama inference speed (CPU / modest GPU). */
-function estimateGenerationTime(prompt: string, language: string): number {
-  // Realistic Ollama baseline: ~10-15s startup + first token latency
-  const baseTime = 12;
-  // Token generation: ~1 token/sec on CPU, so ~1-1.5s per word of expected output
-  const perWordTime = 1.3;
-  const wordCount = prompt.trim().split(/\s+/).length;
-  // Complex prompts with enumerated items take proportionally longer
-  const complexityBonus = (prompt.match(/[\d]+\.|[-•*]/g) || []).length * 3;
-  // Language complexity: Graphviz and DBML require more reasoning
-  const langMultiplier = language === 'graphviz' ? 1.6 : language === 'dbml' ? 1.7 : 1.0;
-  // Add 30% safety margin since Ollama timing is unpredictable
-  const estimate = (baseTime + wordCount * perWordTime + complexityBonus) * langMultiplier * 1.3;
-  return Math.round(estimate);
 }
 
 export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, onCodeChange, isGenerating = false, prompt = '', hideToggle = false, onRenderError }) => {
@@ -65,7 +49,7 @@ export const DiagramPreview: React.FC<DiagramPreviewProps> = ({ code, language, 
 
   // Generation timer state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const estimatedTime = estimateGenerationTime(prompt, language);
+  const estimatedTime = estimateGenerationTimeSeconds(prompt, language);
 
   useEffect(() => {
     if (!isGenerating) {

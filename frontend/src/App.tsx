@@ -21,18 +21,45 @@ import { useUIStore } from './store/uiStore';
 import { formatCode as formatCodeAPI, fetchDemo, fetchHealth, validateDiagram, correctDiagram } from './utils/api';
 import { exportAsPNG, exportAsSVG, exportAsPDF, type ExportOptions } from './utils/exporters';
 import type { DiagramExample } from './utils/examples';
+import {
+  estimateCorrectionTimeSeconds,
+  estimateValidationTimeSeconds,
+  getSimulatedDurationMs,
+} from './utils/generationTiming';
 import './index.css';
+
+function resolveEffectiveAI(settings: {
+  obliqueRelay: boolean;
+  model: string;
+  visionModel: string;
+  remoteModel: string;
+  remoteVisionModel: string;
+  autoValidation: boolean;
+  maxValidationRetries: number;
+}) {
+  const useRemote = settings.obliqueRelay;
+
+  return {
+    model: useRemote
+      ? settings.remoteModel
+      : (settings.model === 'viscept' ? 'qwen2.5-coder:7b' : settings.model),
+    visionModel: useRemote
+      ? settings.remoteVisionModel
+      : (settings.visionModel === 'viscept' ? 'granite3.2-vision:2b' : settings.visionModel),
+    autoValidation: useRemote ? true : settings.autoValidation,
+    maxValidationRetries: useRemote ? Math.max(2, settings.maxValidationRetries) : settings.maxValidationRetries,
+  };
+}
 
 export const App: React.FC = () => {
   const previewRef = useRef<HTMLDivElement>(null);
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
   const { settings, updateSetting } = useSettings();
+  const effectiveAI = resolveEffectiveAI(settings);
   const chat = useChat({
-    model: settings.model,
-    visionModel: settings.visionModel,
-    autoValidation: settings.autoValidation,
-    maxValidationRetries: settings.maxValidationRetries,
+    ...effectiveAI,
+    useRemotePath: settings.obliqueRelay,
   });
   const { examplesOpen, setExamplesOpen } = useUIStore();
 
@@ -111,8 +138,11 @@ export const App: React.FC = () => {
         code,
         diagramType,
         originalPrompt: firstUser?.content ?? 'User diagram',
-        model: settings.model,
-        visionModel: settings.visionModel,
+        model: effectiveAI.model,
+        visionModel: effectiveAI.visionModel,
+        minimumDurationMs: settings.obliqueRelay
+          ? getSimulatedDurationMs(estimateValidationTimeSeconds(code, diagramType))
+          : undefined,
       });
       chat.updateValidationResult(result);
     } catch {
@@ -120,7 +150,7 @@ export const App: React.FC = () => {
     } finally {
       setIsValidating(false);
     }
-  }, [code, diagramType, messages, chat, settings.model, settings.visionModel]);
+  }, [code, diagramType, messages, chat, effectiveAI.model, effectiveAI.visionModel]);
 
   const handleFix = useCallback(async () => {
     const validationResult = chat.validationResult;
@@ -171,8 +201,13 @@ export const App: React.FC = () => {
           diagramType,
           renderError: errorMsg,
           originalPrompt: firstUser?.content ?? 'User diagram',
-          model: settings.model,
-          visionModel: settings.visionModel,
+          model: effectiveAI.model,
+          visionModel: effectiveAI.visionModel,
+          minimumDurationMs: settings.obliqueRelay
+            ? getSimulatedDurationMs(
+              estimateCorrectionTimeSeconds(firstUser?.content ?? 'User diagram', diagramType, errorMsg),
+            )
+            : undefined,
         });
 
         if (corrected.code) {
@@ -185,7 +220,7 @@ export const App: React.FC = () => {
         setIsAutoCorrecting(false);
       }
     },
-    [code, diagramType, chat, messages, isAutoCorrecting, settings.model, settings.visionModel],
+    [code, diagramType, chat, messages, isAutoCorrecting, effectiveAI.model, effectiveAI.visionModel],
   );
 
   // ── Settings adapter (typed → generic for SettingsDialog) ────────────────
@@ -197,13 +232,25 @@ export const App: React.FC = () => {
     [updateSetting],
   );
 
+  const handleModelChange = useCallback(
+    (model: string) => {
+      if (settings.obliqueRelay) {
+        updateSetting('remoteModel', model);
+        return;
+      }
+
+      updateSetting('model', model);
+    },
+    [settings.obliqueRelay, updateSetting],
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       <AppShell
         /* identity */
         isOllamaOnline={isOllamaOnline}
-        currentModel={settings.model}
+        currentModel="viscept"
         /* sidebar */
         chatList={chat.chatList}
         activeChatId={chat.activeChat?.id ?? null}
@@ -219,7 +266,7 @@ export const App: React.FC = () => {
         onSendMessage={chat.sendMessage}
         onRegenerate={chat.regenerateLastResponse}
         onLoadDemo={handleLoadDemo}
-        onModelChange={(m) => updateSetting('model', m)}
+        onModelChange={handleModelChange}
         /* workspace */
         code={code}
         language={diagramType}
